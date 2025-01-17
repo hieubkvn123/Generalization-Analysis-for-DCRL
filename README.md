@@ -15,7 +15,7 @@ python plot_result.py
 ```
 
 ## Citation
-```bash
+```txt
 @inproceedings{
   title={Generalization Analysis for Deep Contrastive Representation Learning},
   author={Nong Minh Hieu and Antoine Ledent and Yunwen Lei and Cheng Yeaw Ku},
