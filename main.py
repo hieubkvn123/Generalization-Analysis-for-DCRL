@@ -85,7 +85,7 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
                 l1_norm = sum(p.abs().sum() for p in model.parameters())
 
                 # Total loss = CE loss + L1 penalty
-                loss = ce_loss + l1_lambda * l1_norm
+                loss = ce_loss + (l1_lambda/L) * l1_norm
                     
                 # Back propagation
                 loss.backward()
