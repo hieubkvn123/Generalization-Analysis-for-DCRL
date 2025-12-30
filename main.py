@@ -152,7 +152,7 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
 def ablation_study_varying_depths(args, min_depth, max_depth):
     # Initialize results
     depths = list(range(min_depth, max_depth + 1))
-    results_depth = { 'ours' : [], 'bartlett' : [] } 
+    results_depth = {x: [] for x in list(RESULT_KEYS.keys())} 
     train_losses, test_losses = [], []
 
     # Conduct training
@@ -181,7 +181,7 @@ def ablation_study_varying_depths(args, min_depth, max_depth):
 def ablation_study_varying_widths(args, min_width, max_width):
     # Initialize results
     widths = list(range(min_width, max_width + 1))
-    results_width = { 'ours' : [], 'bartlett' : [] } 
+    results_width = {x: [] for x in list(RESULT_KEYS.keys())} 
     train_losses, test_losses = [], []
 
     # Conduct training
