@@ -91,56 +91,6 @@ class Net(nn.Module):
 def get_model(in_dim=784, out_dim=64, hidden_dim=128, L=10, device=None):
     return Net(in_dim=in_dim, out_dim=out_dim, hidden_dim=hidden_dim, L=L, device=device)
 
-# Compute Yunwen's complexity measure
-def compute_complexity_YW(dataloader, network: Net, device=None):
-    # Report
-    print('[INFO] Computing Yunwen et. al. complexity measure...')
-
-    # Get device
-    if device is None:
-        device = get_default_device()
-        network = network.to(device)
-        network.device = device
-
-    # Get necessary constants
-    L = network.L 
-    n = len(dataloader)
-    d = network.out_dim
-
-    # Initialization
-    B_x = 0.0
-    complexity = np.sqrt(L * d)
-    
-    # Compute complexity
-    for l in range(1, L+1):
-        A_l = network._get_v_layer_weights(layer=l)
-        complexity *= frobenius_norm(A_l)
-        complexity *= spectral_norm(A_l)
-
-    # Find B_x
-    print('[INFO] Computing B_x...')
-    network.eval()
-    with tqdm.tqdm(total=n) as pbar:
-        for i, batch in enumerate(dataloader):
-            # Calculate inputs l2 norms
-            X = torch.cat([batch[0], batch[1], *batch[2]], dim=0)
-            X_l2 = torch.linalg.norm(X, dim=1, ord=2).squeeze()
-            X_l2_max = torch.max(X_l2)
-
-            # Check
-            if B_x < X_l2_max.item():
-                B_x = X_l2_max.item()
-
-            # Update progress
-            pbar.set_postfix({
-                'batch' : f'#[{i+1}/{n}]',
-                'current Bx' : f'{B_x:.4f}'
-            })
-            pbar.update(1)
-    complexity = complexity * (B_x ** 2)
-    complexity = complexity / np.sqrt(n)
-    return complexity
-
 # Compute Bartlett et al. complexity
 def compute_complexity_bartlett(network: Net, n=1000, device=None):
     # Report
@@ -178,6 +128,38 @@ def compute_complexity_bartlett(network: Net, n=1000, device=None):
 
     # Scale by 1/sqrt(n)
     complexity = R_A / np.sqrt(n)
+    return complexity
+
+# Compute Para. count complexity 
+def compute_complexity_paracount(network: Net, n=1000, device=None):
+    # Report
+    print('[INFO] Computing Long&Sedghi complexity measure...')
+    network.eval()
+
+    # Get device
+    if device is None:
+        device = get_default_device()
+        network = network.to(device)
+        network.device = device
+
+    # Get necessary constants
+    L = network.L 
+    d = network.out_dim
+
+    # Initialization
+    W = 0.0
+    
+    # Compute complexity
+    for l in range(1, L+1):
+        A_l = network._get_v_layer_weights(layer=l)
+        d_out, d_in = A_l.shape
+        W += d_out
+
+        if l == 1:
+            W += d_in
+
+    # Scale by 1/sqrt(n)
+    complexity = np.sqrt(W/n)
     return complexity
 
 # Compute our complexity 
@@ -223,6 +205,78 @@ def compute_complexity_ours(network: Net, n=1000, p=0.5, device=None):
             U_l = (m_l / s_l) * np.sqrt(d_out * d_in) 
         R_A += (U_l*prod_term) ** ((2*p) / (3*p + 2))
     complexity = R_A ** ((3*p + 2)/(2*p + 4))
+
+    # Scale by 1/sqrt(n)
+    complexity = complexity / np.sqrt(n)
+    return complexity
+
+# Compute our complexity with layer-wise optimal p
+def compute_complexity_ours_opt(network: Net, n=1000, device=None):
+    # Report
+    print('[INFO] Computing our complexity measure with layer-wise optimal p...')
+    network.eval()
+
+    # Get device
+    if device is None:
+        device = get_default_device()
+        network = network.to(device)
+        network.device = device
+
+    # Get necessary constants
+    L = network.L 
+    d = network.out_dim
+
+    # Define p search space
+    p_candidates = np.arange(0.05, 1.0, 0.05)
+
+    # Compute the product term (uses spectral norms)
+    prod_term = 1.0
+    for l in range(1, L+1):
+        A_l = network._get_v_layer_weights(layer=l)
+        s_l = spectral_norm(A_l)
+        prod_term += s_l
+    
+    # Track maximum p across all layers
+    p_max = 0.0
+    
+    # Compute complexity with optimal p for each layer
+    R_A = 0.0
+    for l in range(1, L+1):
+        A_l = network._get_v_layer_weights(layer=l)
+        d_out, d_in = A_l.shape
+
+        # Compute spectral norm (independent of p)
+        s_l = spectral_norm(A_l)
+
+        # Find optimal p_l for this layer (maximize the contribution)
+        best_p_l = None
+        best_value = float('-inf')
+        
+        for p_l in p_candidates:
+            # Compute L_p norm for this candidate p_l
+            m_l = lp_norm(A_l, p=p_l)
+            
+            # Compute U_l with this p_l
+            if l != L:
+                U_l = (m_l / s_l) * np.sqrt((d_out ** 2) * d_in) 
+            else:
+                U_l = (m_l / s_l) * np.sqrt(d_out * d_in)
+            
+            # Compute the quantity to maximize
+            value = (U_l * prod_term) ** ((2 * p_l) / (3 * p_l + 2))
+            
+            if value > best_value:
+                best_value = value
+                best_p_l = p_l
+        
+        # Update p_max
+        p_max = max(p_max, best_p_l)
+        
+        # Add the best contribution for this layer
+        R_A += best_value
+    
+    # Final complexity computation using p_max
+    complexity = R_A ** ((3 * p_max + 2) / (2 * p_max + 4))
 
     # Scale by 1/sqrt(n)
     complexity = complexity / np.sqrt(n)
