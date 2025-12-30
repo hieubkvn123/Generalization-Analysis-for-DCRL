@@ -3,6 +3,7 @@ import torch.nn as nn
 
 import tqdm
 import numpy as np
+from common import get_default_device
 from norms import frobenius_norm, lp_norm, l21_norm, spectral_norm 
 
 # Network definition

@@ -9,8 +9,8 @@ from dataset import get_dataloader
 from common import apply_model_to_batch, save_json_dict
 from model import (
     get_model, 
-    compute_complexity_measure_ours,
-    compute_complexity_measure_ours_bartlett
+    compute_complexity_ours,
+    compute_complexity_bartlett
 )
 
 # Visualization configs
@@ -39,14 +39,14 @@ DATASET_TO_INDIM = {
 RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'ours': 'Ours'}
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'ours': 'tab:blue'}
 
-def train(epochs, dataset='mnist', d_dim=64, hidden_dim=128, num_classes=10, batch_size=64):
+def train(epochs, dataset='mnist', d_dim=64, hidden_dim=128, num_classes=10, batch_size=64, L=2):
     # Get dataset 
     train_dataloader, test_dataloader = get_dataloader(name=dataset, batch_size=batch_size)
     num_train_batches = len(train_dataloader)
     num_test_batches = len(test_dataloader)
     
     # Load model - output dimension should match number of classes
-    model = get_model(in_dim=DATASET_TO_INDIM[dataset], out_dim=num_classes, hidden_dim=hidden_dim, L=2)
+    model = get_model(in_dim=DATASET_TO_INDIM[dataset], out_dim=num_classes, hidden_dim=hidden_dim, L=L)
     model = model.to(model.device)
 
     # Optimization algorithm
@@ -141,8 +141,8 @@ def train(epochs, dataset='mnist', d_dim=64, hidden_dim=128, num_classes=10, bat
 
     # Evaluate complexity measures
     print('------\nComplexity measures computation:')
-    cm_ours = np.log(compute_complexity_measure_ours(model, n=len(train_dataloader.dataset)))
-    cm_bartlett = np.log(compute_complexity_measure_bartlett(model, n=len(train_dataloader.dataset)))
+    cm_ours = np.log(compute_complexity_ours(model, n=len(train_dataloader.dataset)))
+    cm_bartlett = np.log(compute_complexity_bartlett(model, n=len(train_dataloader.dataset)))
     return cm_ours, cm_bartlett, final_average_train_loss, final_average_test_loss, final_train_accuracy, final_test_accuracy
 
 def results_visualization_utils(results, xaxis_data, xlabel, ylabel, 
@@ -226,11 +226,11 @@ def ablation_study_varying_widths(args, min_width, max_width):
 
 if __name__ == '__main__':
     # Ablation study with depth
-    args = {'dataset' : 'mnist', 'hidden_dim' : 64, 'output_dim' : 64, 'k' : BATCH_SIZE, 'n' : 100}
+    args = {'dataset' : 'mnist', 'hidden_dim' : 64, 'output_dim' : 64}
     results = ablation_study_varying_depths(args, min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
     save_json_dict(results, 'results/ablation_study_depth.json')
 
     # Ablation study with width
-    args = {'dataset' : 'mnist', 'L' : 3, 'output_dim' : 64, 'k' : BATCH_SIZE, 'n' : 100}
+    args = {'dataset' : 'mnist', 'L' : 3, 'output_dim' : 64}
     results = ablation_study_varying_widths(args, min_width=MIN_WIDTH, max_width=MAX_WIDTH)
     save_json_dict(results, 'results/ablation_study_width.json')
