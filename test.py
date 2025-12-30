@@ -16,7 +16,7 @@ if __name__ == '__main__':
     print(f'[INFO] - Complexity measure (ours - p=0.5): {complexity:.4f}\n')
 
     complexity = np.log(compute_complexity_ours_opt(model))
-    print(f'[INFO] - Complexity measure (ours - opt): {complexity:.4f}\n')
+    print(f'[INFO] - Complexity measure (ours - line search): {complexity:.4f}\n')
     
     complexity = np.log(compute_complexity_bartlett(model))
     print(f'[INFO] - Complexity measure (bartlett): {complexity:.4f}\n')

@@ -159,7 +159,7 @@ def compute_complexity_paracount(network: Net, n=1000, device=None):
             W += d_in
 
     # Scale by 1/sqrt(n)
-    complexity = np.sqrt((W**2)/n)
+    complexity = np.sqrt(W/n)
     return complexity
 
 # Compute our complexity 
