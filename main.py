@@ -41,7 +41,24 @@ DATASET_TO_INDIM = {
 RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Long, Sedghi', 'ours': 'Ours', 'ours_opt': 'Ours (line search)'}
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours': 'tab:blue', 'ours_opt': 'tab:cyan'}
 
-def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64, l1_lambda=0.001):
+# Function to compute L1 norm of all parameters
+def compute_l1_norm(model):
+    l1_norm = 0.0
+    num_params = 0.0
+    for param in model.parameters():
+        l1_norm += torch.sum(torch.abs(param)).item()
+        num_params += len(param)
+    print(num_params)
+    return l1_norm / num_params
+
+# Function to compute L1 regularization loss
+def l1_regularization(model, lambda_l1):
+    l1_loss = 0.0
+    for param in model.parameters():
+        l1_loss += torch.sum(torch.abs(param))
+    return lambda_l1 * l1_loss
+
+def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64, l1_lambda=0.01):
     # Get dataset 
     train_dataloader, test_dataloader = get_dataloader(name=dataset, batch_size=batch_size)
     num_train_batches = len(train_dataloader)
@@ -54,8 +71,8 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
     # Optimization algorithm
     optimizer = torch.optim.Adam(
         model.parameters(), 
-        lr=0.0009, 
-        amsgrad=True)
+        lr=0.0009,
+    )
     
     # Loss function for classification
     criterion = torch.nn.CrossEntropyLoss(reduction='sum')
@@ -73,6 +90,8 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
             correct = 0
             total = 0
             for i, (images, labels) in enumerate(train_dataloader):
+                optimizer.zero_grad()
+
                 # Move data to device
                 images = images.to(model.device)
                 labels = labels.to(model.device)
@@ -80,17 +99,12 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
                 # Forward pass + CE calculation
                 outputs = model(images)
                 ce_loss = criterion(outputs, labels)
+                l1_loss = l1_regularization(model, l1_lambda/ (L ** 2))
+                loss = ce_loss + l1_loss
 
-                # Calculate L1 regularization term
-                l1_norm = sum(p.abs().sum() for p in model.parameters())
-
-                # Total loss = CE loss + L1 penalty
-                loss = ce_loss + (l1_lambda/L) * l1_norm
-                    
                 # Back propagation
                 loss.backward()
                 optimizer.step()
-                optimizer.zero_grad()
 
                 # Update loss and accuracy for this epoch
                 total_loss += loss.item()
@@ -101,14 +115,14 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
                 # Update progress bar
                 pbar.set_postfix({
                     'train_loss' : f'{loss.item():.5f}',
-                    'l1_term' : f'{l1_norm.item():.5f}',
                     'batch' : f'#[{i+1}/{num_train_batches}]' 
                 })
                 pbar.update(1)
             time.sleep(0.1)
+            l1_norm = compute_l1_norm(model)
             final_average_train_loss = total_loss / (num_train_batches * batch_size)
             final_train_accuracy = 100 * correct / total
-            print(f'\nAverage train loss: {final_average_train_loss:.4f}, Accuracy: {final_train_accuracy:.2f}%\n------\n')
+            print(f'\nAverage train loss: {final_average_train_loss:.4f}, Accuracy: {final_train_accuracy:.2f}%, L1-norm: {l1_norm:.2f}\n------\n')
 
         if final_average_train_loss <= TRAIN_LOSS_THRESHOLD:
             print('[INFO] Train loss target reached, early stopping...')
