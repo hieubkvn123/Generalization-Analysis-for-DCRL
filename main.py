@@ -24,13 +24,13 @@ plt.rcParams['text.usetex'] = True
 # Constants for training
 MAX_EPOCHS = 1000
 BATCH_SIZE = 64
-TRAIN_LOSS_THRESHOLD = 1e-2
+TRAIN_LOSS_THRESHOLD = 0.05 # 1e-2
 
 # Constants for ablation study
 MIN_WIDTH = 1
-MAX_WIDTH = 8
+MAX_WIDTH = 2 # 8
 MIN_DEPTH = 2
-MAX_DEPTH = 10
+MAX_DEPTH = 3 # 10
 DATASET_TO_INDIM = {
     'mnist': 28 * 28,          # 784 for flattened, or use (1, 28, 28) for CNNs
     'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
@@ -39,7 +39,7 @@ DATASET_TO_INDIM = {
 RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'ours': 'Ours'}
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'ours': 'tab:blue'}
 
-def train(epochs, dataset='mnist', d_dim=64, hidden_dim=128, num_classes=10, batch_size=64, L=2):
+def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64):
     # Get dataset 
     train_dataloader, test_dataloader = get_dataloader(name=dataset, batch_size=batch_size)
     num_train_batches = len(train_dataloader)
@@ -176,13 +176,12 @@ def ablation_study_varying_depths(args, min_depth, max_depth):
     # Conduct training
     for i, L in enumerate(depths):
         print(f'[INFO] Experiment #[{i+1}/{len(depths)}], L = {L}')
-        cm_ours, cm_bartlett, train_loss, test_loss = train(
+        cm_ours, cm_bartlett, train_loss, test_loss, train_acc, test_acc = train(
             epochs=MAX_EPOCHS, 
             batch_size=BATCH_SIZE,
             L=L,
             dataset=args['dataset'],
-            hidden_dim=args['hidden_dim'],
-            d_dim=args['output_dim']
+            hidden_dim=args['hidden_dim']
         )
         results_depth['ours'].append(cm_ours)
         results_depth['bartlett'].append(cm_bartlett)
@@ -204,13 +203,12 @@ def ablation_study_varying_widths(args, min_width, max_width):
     # Conduct training
     for i, W in enumerate(widths):
         print(f'[INFO] Experiment #[{i+1}/{len(widths)}], W = {W*32}')
-        cm_ours, cm_bartlett, train_loss, test_loss = train(
+        cm_ours, cm_bartlett, train_loss, test_loss, train_acc, test_acc = train(
             epochs=MAX_EPOCHS, 
             batch_size=BATCH_SIZE,
-            hidden_dim=W * 32,
             L=args['L'],
             dataset=args['dataset'],
-            d_dim=args['output_dim']
+            hidden_dim=W * 32
         )
         results_width['ours'].append(cm_ours)
         results_width['bartlett'].append(cm_bartlett)
@@ -226,11 +224,11 @@ def ablation_study_varying_widths(args, min_width, max_width):
 
 if __name__ == '__main__':
     # Ablation study with depth
-    args = {'dataset' : 'mnist', 'hidden_dim' : 64, 'output_dim' : 64}
+    args = {'dataset' : 'mnist', 'hidden_dim' : 64} # Keep hidden dim at 64
     results = ablation_study_varying_depths(args, min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
     save_json_dict(results, 'results/ablation_study_depth.json')
 
     # Ablation study with width
-    args = {'dataset' : 'mnist', 'L' : 3, 'output_dim' : 64}
+    args = {'dataset' : 'mnist', 'L' : 3} # Keep depth at 3 layers
     results = ablation_study_varying_widths(args, min_width=MIN_WIDTH, max_width=MAX_WIDTH)
     save_json_dict(results, 'results/ablation_study_width.json')

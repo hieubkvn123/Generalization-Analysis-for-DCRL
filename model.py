@@ -85,6 +85,7 @@ class Net(nn.Module):
         return x 
     
     def forward(self, x):
+        x = x.view(x.size(0), -1)
         return self.U(self.v(x))
 
 def get_model(in_dim=784, out_dim=64, hidden_dim=128, L=10, device=None):
@@ -143,7 +144,7 @@ def compute_complexity_YW(dataloader, network: Net, device=None):
 # Compute Bartlett et al. complexity
 def compute_complexity_bartlett(network: Net, n=1000, device=None):
     # Report
-    print('[INFO] Computing our complexity measure...')
+    print('[INFO] Computing Bartlett et al. complexity measure...')
     network.eval()
 
     # Get device
