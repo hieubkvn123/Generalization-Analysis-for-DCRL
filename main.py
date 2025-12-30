@@ -41,7 +41,7 @@ DATASET_TO_INDIM = {
 RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Long, Sedghi', 'ours': 'Ours', 'ours_opt': 'Ours (line search)'}
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours': 'tab:blue', 'ours_opt': 'tab:cyan'}
 
-def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64):
+def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64, l1_lambda=0.001):
     # Get dataset 
     train_dataloader, test_dataloader = get_dataloader(name=dataset, batch_size=batch_size)
     num_train_batches = len(train_dataloader)
@@ -77,9 +77,15 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
                 images = images.to(model.device)
                 labels = labels.to(model.device)
                 
-                # Forward pass
+                # Forward pass + CE calculation
                 outputs = model(images)
-                loss = criterion(outputs, labels)
+                ce_loss = criterion(outputs, labels)
+
+                # Calculate L1 regularization term
+                l1_norm = sum(p.abs().sum() for p in model.parameters())
+
+                # Total loss = CE loss + L1 penalty
+                loss = ce_loss + l1_lambda * l1_norm
                     
                 # Back propagation
                 loss.backward()
@@ -95,7 +101,8 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
                 # Update progress bar
                 pbar.set_postfix({
                     'train_loss' : f'{loss.item():.5f}',
-                    'batch' : f'#[{i+1}/{num_train_batches}]'
+                    'l1_term' : f'{l1_norm.item():.5f}',
+                    'batch' : f'#[{i+1}/{num_train_batches}]' 
                 })
                 pbar.update(1)
             time.sleep(0.1)
