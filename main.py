@@ -28,9 +28,9 @@ TRAIN_LOSS_THRESHOLD = 0.05 # 1e-2
 
 # Constants for ablation study
 MIN_WIDTH = 1
-MAX_WIDTH = 2 # 8
+MAX_WIDTH = 8
 MIN_DEPTH = 2
-MAX_DEPTH = 3 # 10
+MAX_DEPTH = 10
 DATASET_TO_INDIM = {
     'mnist': 28 * 28,          # 784 for flattened, or use (1, 28, 28) for CNNs
     'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
