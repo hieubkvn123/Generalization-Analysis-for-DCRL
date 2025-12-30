@@ -18,8 +18,8 @@ fontconfig = {
 
 # Constants
 SAVE_PATH = 'results/ablation_studies.pdf'
-RESULT_KEYS = {'ar': 'Arora et al.', 'yw' : 'Lei et al.', 'thm1' : 'Ours (Thm. 1)', 'thm2' : 'Ours (Thm. 2)', 'thm3' : 'Ours (Thm. 3)'}
-COLOR_KEYS = {'ar' : 'tab:orange', 'yw' : 'tab:red', 'thm1' : 'tab:blue', 'thm2' : 'tab:purple', 'thm3' : 'tab:green'}
+RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'ours': 'Ours'}
+COLOR_KEYS  = {'bartlett': 'tab:orange', 'ours': 'tab:blue'}
 
 def load_json_to_dict(file_path):
     with open(file_path, 'r') as file:
