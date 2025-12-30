@@ -8,9 +8,11 @@ import matplotlib.pyplot as plt
 from dataset import get_dataloader
 from common import apply_model_to_batch, save_json_dict
 from model import (
-    get_model, 
+    get_model,
     compute_complexity_ours,
-    compute_complexity_bartlett
+    compute_complexity_ours_opt,
+    compute_complexity_bartlett,
+    compute_complexity_paracount
 )
 
 # Visualization configs
@@ -36,8 +38,8 @@ DATASET_TO_INDIM = {
     'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
     'cifar10': 32 * 32 * 3     # 3072 for flattened, or use (3, 32, 32) for CNNs
 }
-RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'ours': 'Ours'}
-COLOR_KEYS  = {'bartlett': 'tab:orange', 'ours': 'tab:blue'}
+RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Long, Sedghi', 'ours': 'Ours', 'ours_opt': 'Ours (line search)'}
+COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours': 'tab:blue', 'ours_opt': 'tab:cyan'}
 
 def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64):
     # Get dataset 
@@ -142,8 +144,69 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
     # Evaluate complexity measures
     print('------\nComplexity measures computation:')
     cm_ours = np.log(compute_complexity_ours(model, n=len(train_dataloader.dataset)))
+    cm_ours_opt = np.log(compute_complexity_ours_opt(model, n=len(train_dataloader.dataset)))
     cm_bartlett = np.log(compute_complexity_bartlett(model, n=len(train_dataloader.dataset)))
-    return cm_ours, cm_bartlett, final_average_train_loss, final_average_test_loss, final_train_accuracy, final_test_accuracy
+    cm_paracount = np.log(compute_complexity_paracount(model, n=len(train_dataloader.dataset)))
+    return cm_ours, cm_ours_opt, cm_bartlett, cm_paracount, final_average_train_loss, final_average_test_loss, final_train_accuracy, final_test_accuracy
+
+def ablation_study_varying_depths(args, min_depth, max_depth):
+    # Initialize results
+    depths = list(range(min_depth, max_depth + 1))
+    results_depth = { 'ours' : [], 'bartlett' : [] } 
+    train_losses, test_losses = [], []
+
+    # Conduct training
+    for i, L in enumerate(depths):
+        print(f'[INFO] Experiment #[{i+1}/{len(depths)}], L = {L}')
+        cm_ours, cm_ours_opt, cm_bartlett, cm_paracount, train_loss, test_loss, train_acc, test_acc = train(
+            epochs=MAX_EPOCHS, 
+            batch_size=BATCH_SIZE,
+            L=L,
+            dataset=args['dataset'],
+            hidden_dim=args['hidden_dim']
+        )
+        results_depth['ours'].append(cm_ours)
+        results_depth['ours_opt'].append(cm_ours_opt)
+        results_depth['bartlett'].append(cm_bartlett)
+        results_depth['paracount'].append(cm_paracount)
+        train_losses.append(train_loss)
+        test_losses.append(test_loss)
+    return {
+        'depths' : depths,
+        'complexities' : results_depth,
+        'train_loss' : train_losses,
+        'test_loss' : test_losses
+    }
+
+def ablation_study_varying_widths(args, min_width, max_width):
+    # Initialize results
+    widths = list(range(min_width, max_width + 1))
+    results_width = { 'ours' : [], 'bartlett' : [] } 
+    train_losses, test_losses = [], []
+
+    # Conduct training
+    for i, W in enumerate(widths):
+        print(f'[INFO] Experiment #[{i+1}/{len(widths)}], W = {W*32}')
+        cm_ours, cm_ours_opt, cm_bartlett, cm_paracount, train_loss, test_loss, train_acc, test_acc = train(
+            epochs=MAX_EPOCHS, 
+            batch_size=BATCH_SIZE,
+            L=args['L'],
+            dataset=args['dataset'],
+            hidden_dim=W * 32
+        )
+        results_width['ours'].append(cm_ours)
+        results_width['ours_opt'].append(cm_ours_opt)
+        results_width['bartlett'].append(cm_bartlett)
+        results_width['paracount'].append(cm_paracount)
+        train_losses.append(train_loss)
+        test_losses.append(test_loss)
+    
+    return {
+        'widths' : widths, 
+        'complexities' : results_width,
+        'train_loss' : train_losses,
+        'test_loss' : test_losses
+    }
 
 def results_visualization_utils(results, xaxis_data, xlabel, ylabel, 
     save_dir='results', save_path='file.png'):
@@ -166,61 +229,6 @@ def results_visualization_utils(results, xaxis_data, xlabel, ylabel,
     plt.legend(loc='upper left', fontsize="15")
     plt.tight_layout()
     plt.savefig(save_path, dpi=300)
-
-def ablation_study_varying_depths(args, min_depth, max_depth):
-    # Initialize results
-    depths = list(range(min_depth, max_depth + 1))
-    results_depth = { 'ours' : [], 'bartlett' : [] } 
-    train_losses, test_losses = [], []
-
-    # Conduct training
-    for i, L in enumerate(depths):
-        print(f'[INFO] Experiment #[{i+1}/{len(depths)}], L = {L}')
-        cm_ours, cm_bartlett, train_loss, test_loss, train_acc, test_acc = train(
-            epochs=MAX_EPOCHS, 
-            batch_size=BATCH_SIZE,
-            L=L,
-            dataset=args['dataset'],
-            hidden_dim=args['hidden_dim']
-        )
-        results_depth['ours'].append(cm_ours)
-        results_depth['bartlett'].append(cm_bartlett)
-        train_losses.append(train_loss)
-        test_losses.append(test_loss)
-    return {
-        'depths' : depths,
-        'complexities' : results_depth,
-        'train_loss' : train_losses,
-        'test_loss' : test_losses
-    }
-
-def ablation_study_varying_widths(args, min_width, max_width):
-    # Initialize results
-    widths = list(range(min_width, max_width + 1))
-    results_width = { 'ours' : [], 'bartlett' : [] } 
-    train_losses, test_losses = [], []
-
-    # Conduct training
-    for i, W in enumerate(widths):
-        print(f'[INFO] Experiment #[{i+1}/{len(widths)}], W = {W*32}')
-        cm_ours, cm_bartlett, train_loss, test_loss, train_acc, test_acc = train(
-            epochs=MAX_EPOCHS, 
-            batch_size=BATCH_SIZE,
-            L=args['L'],
-            dataset=args['dataset'],
-            hidden_dim=W * 32
-        )
-        results_width['ours'].append(cm_ours)
-        results_width['bartlett'].append(cm_bartlett)
-        train_losses.append(train_loss)
-        test_losses.append(test_loss)
-    
-    return {
-        'widths' : widths, 
-        'complexities' : results_width,
-        'train_loss' : train_losses,
-        'test_loss' : test_losses
-    }
 
 if __name__ == '__main__':
     # Ablation study with depth
