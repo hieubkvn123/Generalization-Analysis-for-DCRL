@@ -14,3 +14,8 @@ def frobenius_norm(A):
 def spectral_norm(A):
     sv = np.linalg.svd(A).S
     return max(sv)
+
+def lp_norm(A, p=0.5):
+    if p <= 0:
+        raise ValueError("p must be positive")
+    return np.sum(np.abs(A) ** p) ** (1.0 / p)
