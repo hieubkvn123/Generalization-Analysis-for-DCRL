@@ -140,7 +140,7 @@ def compute_complexity_bartlett(network: Net, n=1000, device=None):
 # Compute Para. count complexity 
 def compute_complexity_paracount(network: Net, n=1000, device=None):
     # Report
-    print('[INFO] Computing Long&Sedghi complexity measure...')
+    print('[INFO] Computing parameter-counting complexity measure...')
     network.eval()
 
     # Get device
@@ -160,17 +160,14 @@ def compute_complexity_paracount(network: Net, n=1000, device=None):
     for l in range(1, L+1):
         A_l = network._get_v_layer_weights(layer=l)
         d_out, d_in = A_l.shape
-        W += d_out
-
-        if l == 1:
-            W += d_in
+        W += d_out * d_in
 
     # Scale by 1/sqrt(n)
     complexity = np.sqrt((L * W)/n)
     return complexity
 
 # Compute our complexity 
-def compute_complexity_ours(network: Net, n=1000, p=0.5, device=None):
+def compute_complexity_ours(network: Net, n=1000, p=0.1, device=None):
     # Report
     print('[INFO] Computing our complexity measure...')
     network.eval()
@@ -257,7 +254,7 @@ def compute_complexity_ours_opt(network: Net, n=1000, device=None):
 
         # Find optimal p_l for this layer (maximize the contribution)
         best_p_l = None
-        best_value = float('-inf')
+        best_value = float('inf')
         
         for p_l in p_candidates:
             # Compute L_p norm for this candidate p_l
@@ -272,7 +269,7 @@ def compute_complexity_ours_opt(network: Net, n=1000, device=None):
             # Compute the quantity to maximize
             value = (U_l * prod_term) ** ((2 * p_l) / (3 * p_l + 2))
             
-            if value > best_value:
+            if value < best_value:
                 best_value = value
                 best_p_l = p_l
         
@@ -280,6 +277,7 @@ def compute_complexity_ours_opt(network: Net, n=1000, device=None):
         p_max = max(p_max, best_p_l)
         
         # Add the best contribution for this layer
+        print(f'Layer {l}, best value {best_value}, best p_ell {best_p_l}')
         R_A += best_value
     
     # Final complexity computation using p_max

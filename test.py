@@ -10,9 +10,9 @@ from model import (
 
 if __name__ == '__main__':
     # Initialize model + dataloader
-    model = get_model()
+    model = get_model(hidden_dim=256, out_dim=64)
 
-    complexity = np.log(compute_complexity_ours(model))
+    complexity = np.log(compute_complexity_ours(model, p=0.5))
     print(f'[INFO] - Complexity measure (ours - p=0.5): {complexity:.4f}\n')
 
     complexity = np.log(compute_complexity_ours_opt(model))
