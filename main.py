@@ -26,13 +26,13 @@ plt.rcParams['text.usetex'] = True
 # Constants for training
 MAX_EPOCHS = 1000
 BATCH_SIZE = 64
-TRAIN_LOSS_THRESHOLD = 0.05 # 1e-2
+TRAIN_LOSS_THRESHOLD = 0.1 # 0.05 # 1e-2
 
 # Constants for ablation study
 MIN_WIDTH = 1
-MAX_WIDTH = 8
+MAX_WIDTH = MIN_WIDTH + 1 # 7
 MIN_DEPTH = 2
-MAX_DEPTH = 10
+MAX_DEPTH = MIN_DEPTH + 1 # 8
 DATASET_TO_INDIM = {
     'mnist': 28 * 28,          # 784 for flattened, or use (1, 28, 28) for CNNs
     'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
@@ -58,7 +58,27 @@ def l1_regularization(model, lambda_l1):
         l1_loss += torch.sum(torch.abs(param))
     return lambda_l1 * l1_loss
 
-def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64, l1_lambda=0.01):
+# Function to compute spectral norm (largest singular value) of a matrix
+def compute_spectral_norm(weight_matrix):
+    # Using torch.linalg.matrix_norm with ord=2 computes spectral norm
+    return torch.linalg.matrix_norm(weight_matrix, ord=2)
+
+# Function to compute spectral norms of all weight matrices
+def compute_all_spectral_norms(model):
+    spectral_norms = []
+    for weight in model.get_weight_matrices():
+        spec_norm = compute_spectral_norm(weight)
+        spectral_norms.append(spec_norm.item())
+    return spectral_norms, sum(spectral_norms)
+
+# Function to compute spectral regularization loss
+def spectral_regularization(model, lambda_spectral):
+    spectral_loss = 0.0
+    for weight in model.get_weight_matrices():
+        spectral_loss += compute_spectral_norm(weight)
+    return lambda_spectral * spectral_loss
+
+def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64, reg_lambda=1.0):
     # Get dataset 
     train_dataloader, test_dataloader = get_dataloader(name=dataset, batch_size=batch_size)
     num_train_batches = len(train_dataloader)
@@ -99,8 +119,8 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
                 # Forward pass + CE calculation
                 outputs = model(images)
                 ce_loss = criterion(outputs, labels)
-                l1_loss = l1_regularization(model, l1_lambda/ (L ** 2))
-                loss = ce_loss + l1_loss
+                sp_loss = spectral_regularization(model, reg_lambda/ (L ** 2))
+                loss = ce_loss + sp_loss # l1_loss
 
                 # Back propagation
                 loss.backward()
@@ -119,10 +139,11 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
                 })
                 pbar.update(1)
             time.sleep(0.1)
-            l1_norm = compute_l1_norm(model)
+            sp_norms, sum_sp_norms = compute_all_spectral_norms(model) 
+            avg_sp_norm = sum_sp_norms / len(sp_norms)
             final_average_train_loss = total_loss / (num_train_batches * batch_size)
             final_train_accuracy = 100 * correct / total
-            print(f'\nAverage train loss: {final_average_train_loss:.4f}, Accuracy: {final_train_accuracy:.2f}%, L1-norm: {l1_norm:.2f}\n------\n')
+            print(f'\nAverage train loss: {final_average_train_loss:.4f}, Accuracy: {final_train_accuracy:.2f}%, Spectral norm: {avg_sp_norm:.2f}\n------\n')
 
         if final_average_train_loss <= TRAIN_LOSS_THRESHOLD:
             print('[INFO] Train loss target reached, early stopping...')

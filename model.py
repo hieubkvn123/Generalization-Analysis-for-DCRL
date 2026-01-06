@@ -83,6 +83,13 @@ class Net(nn.Module):
             else:
                 x = activation(x)
         return x 
+
+    def get_weight_matrices(self):
+        weight_matrices = []
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                weight_matrices.append(module.weight)
+        return weight_matrices
     
     def forward(self, x):
         x = x.view(x.size(0), -1)
