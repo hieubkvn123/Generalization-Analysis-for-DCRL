@@ -18,8 +18,8 @@ fontconfig = {
 
 # Constants
 SAVE_PATH = 'results/ablation_studies.pdf'
-RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Long, Sedghi', 'ours': 'Ours', 'ours_opt': 'Ours (line search)'}
-COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours': 'tab:blue', 'ours_opt': 'tab:cyan'}
+RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 'ours': 'Ours'}
+COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours': 'tab:blue'} 
 
 def load_json_to_dict(file_path):
     with open(file_path, 'r') as file:
@@ -48,6 +48,7 @@ def results_visualization_utils(ax, results, xaxis_data, xlabel, ylabel):
 
     # Visualize
     for key, result in results.items():
+        if key not in RESULT_KEYS.keys(): continue
         ax.plot(xaxis_data, result, label=RESULT_KEYS[key], color=COLOR_KEYS[key], marker='o')
     ax.set_xlabel(xlabel, fontdict=fontconfig)
     ax.set_ylabel(ylabel, fontdict=fontconfig)
