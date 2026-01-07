@@ -25,7 +25,7 @@ plt.style.use('seaborn-v0_8-paper')
 plt.rcParams['text.usetex'] = True
 
 # Constants for training
-MAX_EPOCHS = 1000
+MAX_EPOCHS = 100
 BATCH_SIZE = 64
 TRAIN_LOSS_THRESHOLD = 0.1 # 0.05 # 1e-2
 
@@ -83,7 +83,7 @@ def spectral_regularization(model, lambda_spectral):
         spectral_loss += compute_spectral_norm(weight)
     return lambda_spectral * spectral_loss
 
-def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64, reg_lambda=1e-2):
+def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64, reg_lambda=0.005):
     # Get dataset 
     train_dataloader, test_dataloader = get_dataloader(name=dataset, batch_size=batch_size)
     num_train_batches = len(train_dataloader)
