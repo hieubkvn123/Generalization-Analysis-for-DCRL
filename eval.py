@@ -51,6 +51,7 @@ def evaluate(model_file, dataset='mnist'):
     
     # Load model 
     model = load_model(model_file)
+    criterion = torch.nn.CrossEntropyLoss(reduction='sum')
 
     # To be stored as final result
     final_average_train_loss, final_average_test_loss = 0, 0
@@ -62,8 +63,6 @@ def evaluate(model_file, dataset='mnist'):
     with tqdm.tqdm(total=len(train_dataloader)) as pbar:
         total_loss, correct, total = 0.0, 0, 0
         for i, (images, labels) in enumerate(train_dataloader):
-            optimizer.zero_grad()
-
             # Move data to device
             images = images.to(model.device)
             labels = labels.to(model.device)
@@ -85,7 +84,7 @@ def evaluate(model_file, dataset='mnist'):
             })
             pbar.update(1)
         time.sleep(0.1)
-        final_average_train_loss = total_loss / (num_train_batches * batch_size)
+        final_average_train_loss = total_loss / (num_train_batches * BATCH_SIZE)
         final_train_accuracy = 100 * correct / total
         print(f'\nAverage train loss: {final_average_train_loss:.4f}, Accuracy: {final_train_accuracy:.2f}%\n------\n')
 
@@ -117,7 +116,7 @@ def evaluate(model_file, dataset='mnist'):
                 })
                 pbar.update(1)
             time.sleep(0.1)
-            final_average_test_loss = total_loss / (num_test_batches * batch_size)
+            final_average_test_loss = total_loss / (num_test_batches * BATCH_SIZE)
             final_test_accuracy = 100 * correct / total
             print(f'Average test loss: {final_average_test_loss:.4f}, Accuracy: {final_test_accuracy:.2f}%')
 
@@ -171,7 +170,7 @@ def ablation_study_varying_widths(min_width, max_width):
     for i, W in enumerate(widths):
         print(f'[INFO] Experiment #[{i+1}/{len(widths)}], W = {W*32}')
         cm, model, train_loss, test_loss, train_acc, test_acc = evaluate(
-            model_file='{SAVE_DIR}/W{W * 32}.pt',
+            model_file=f'{SAVE_DIR}/W{W * 32}.pt',
             dataset='mnist'
         )
 
@@ -211,10 +210,11 @@ def results_visualization_utils(results, xaxis_data, xlabel, ylabel,
     plt.savefig(save_path, dpi=300)
 
 if __name__ == '__main__':
+    # Ablation study with width
+    results = ablation_study_varying_widths(min_width=MIN_WIDTH, max_width=MAX_WIDTH)
+    save_json_dict(results, 'results/ablation_study_width.json')
+
     # Ablation study with depth
     results = ablation_study_varying_depths(min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
     save_json_dict(results, 'results/ablation_study_depth.json')
 
-    # Ablation study with width
-    #results = ablation_study_varying_widths(min_width=MIN_WIDTH, max_width=MAX_WIDTH)
-    #save_json_dict(results, 'results/ablation_study_width.json')
