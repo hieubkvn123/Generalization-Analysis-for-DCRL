@@ -22,13 +22,13 @@ RESULT_KEYS = {
     'bartlett'  : 'Bartlett et al.', 
     'paracount' : 'Graf et al.', 
     'ours'      : 'Ours', 
-    'ours_opt'  : 'Ours (line-search)'
+    # 'ours_opt'  : 'Ours (line-search)'
 }
 COLOR_KEYS  = {
     'bartlett'  : 'tab:orange', 
     'paracount' : 'tab:red', 
     'ours'      : 'tab:blue', 
-    'ours_opt'  : 'tab:purple'
+    # 'ours_opt'  : 'tab:purple'
 } 
 
 def load_json_to_dict(file_path):
