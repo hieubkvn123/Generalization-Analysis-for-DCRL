@@ -9,6 +9,7 @@ from dataset import get_dataloader
 from common import apply_model_to_batch, save_json_dict
 from model import (
     get_model,
+    save_model,
     compute_complexity_ours,
     compute_complexity_ours_opt,
     compute_complexity_bartlett,
@@ -30,16 +31,20 @@ TRAIN_LOSS_THRESHOLD = 0.1 # 0.05 # 1e-2
 
 # Constants for ablation study
 MIN_WIDTH = 1
-MAX_WIDTH = MIN_WIDTH + 7
 MIN_DEPTH = 2
+MAX_WIDTH = MIN_WIDTH + 7
 MAX_DEPTH = MIN_DEPTH + 8
 DATASET_TO_INDIM = {
-    'mnist': 28 * 28,          # 784 for flattened, or use (1, 28, 28) for CNNs
-    'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
-    'cifar10': 32 * 32 * 3     # 3072 for flattened, or use (3, 32, 32) for CNNs
+  'mnist': 28 * 28,          # 784 for flattened, or use (1, 28, 28) for CNNs
+  'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
+  'cifar10': 32 * 32 * 3     # 3072 for flattened, or use (3, 32, 32) for CNNs
 }
-RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Long, Sedghi', 'ours': 'Ours', 'ours_opt': 'Ours (line search)'}
+RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 'ours': 'Ours', 'ours_opt': 'Ours (line search)'}
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours': 'tab:blue', 'ours_opt': 'tab:cyan'}
+SAVE_DIR    = 'checkpoints'
+
+# Create save directory if not available
+pathlib.Path(SAVE_DIR).mkdir(parents=True, exist_ok=True)
 
 # Function to compute L1 norm of all parameters
 def compute_l1_norm(model):
@@ -189,7 +194,12 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
     cm_ours_opt = np.log(compute_complexity_ours_opt(model, n=len(train_dataloader.dataset)))
     cm_bartlett = np.log(compute_complexity_bartlett(model, n=len(train_dataloader.dataset)))
     cm_paracount = np.log(compute_complexity_paracount(model, n=len(train_dataloader.dataset)))
-    return cm_ours, cm_ours_opt, cm_bartlett, cm_paracount, final_average_train_loss, final_average_test_loss, final_train_accuracy, final_test_accuracy
+    return {
+        'ours': cm_ours,
+        'ours_opt': cm_ours_opt,
+        'bartlett': cm_bartlett,
+        'paracount': cm_paracount
+    }, model, final_average_train_loss, final_average_test_loss, final_train_accuracy, final_test_accuracy
 
 def ablation_study_varying_depths(args, min_depth, max_depth):
     # Initialize results
@@ -200,19 +210,24 @@ def ablation_study_varying_depths(args, min_depth, max_depth):
     # Conduct training
     for i, L in enumerate(depths):
         print(f'[INFO] Experiment #[{i+1}/{len(depths)}], L = {L}')
-        cm_ours, cm_ours_opt, cm_bartlett, cm_paracount, train_loss, test_loss, train_acc, test_acc = train(
+        cm, model, train_loss, test_loss, train_acc, test_acc = train(
             epochs=MAX_EPOCHS, 
             batch_size=BATCH_SIZE,
             L=L,
             dataset=args['dataset'],
             hidden_dim=args['hidden_dim']
         )
-        results_depth['ours'].append(cm_ours)
-        results_depth['ours_opt'].append(cm_ours_opt)
-        results_depth['bartlett'].append(cm_bartlett)
-        results_depth['paracount'].append(cm_paracount)
+
+        # Save results
+        for key, item in cm.items():
+            results_depth[key].append(item)
         train_losses.append(train_loss)
         test_losses.append(test_loss)
+
+        # Save models
+        save_file = os.path.join(SAVE_DIR, f'L{L}.pt')
+        save_model(model, save_file)
+
     return {
         'depths' : depths,
         'complexities' : results_depth,
@@ -229,19 +244,23 @@ def ablation_study_varying_widths(args, min_width, max_width):
     # Conduct training
     for i, W in enumerate(widths):
         print(f'[INFO] Experiment #[{i+1}/{len(widths)}], W = {W*32}')
-        cm_ours, cm_ours_opt, cm_bartlett, cm_paracount, train_loss, test_loss, train_acc, test_acc = train(
+        cm, model, train_loss, test_loss, train_acc, test_acc = train(
             epochs=MAX_EPOCHS, 
             batch_size=BATCH_SIZE,
             L=args['L'],
             dataset=args['dataset'],
             hidden_dim=W * 32
         )
-        results_width['ours'].append(cm_ours)
-        results_width['ours_opt'].append(cm_ours_opt)
-        results_width['bartlett'].append(cm_bartlett)
-        results_width['paracount'].append(cm_paracount)
+
+        # Save results
+        for key, item in cm.items():
+            results_width[key].append(item)
         train_losses.append(train_loss)
         test_losses.append(test_loss)
+
+        # Save models
+        save_file = os.path.join(SAVE_DIR, f'W{W * 32}.pt')
+        save_model(model, save_file)
     
     return {
         'widths' : widths, 

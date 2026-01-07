@@ -98,6 +98,40 @@ class Net(nn.Module):
 def get_model(in_dim=784, out_dim=64, hidden_dim=128, L=10, device=None):
     return Net(in_dim=in_dim, out_dim=out_dim, hidden_dim=hidden_dim, L=L, device=device)
 
+## Save and load functions ##
+def save_model(model, filename):
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'model_class': model.__class__,
+        'model_init_args': getattr(model, '_init_args', {}),
+    }, filename)
+    print(f"Model saved to {filename}")
+
+
+def load_model(filename):
+    # Automatically detect device
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    checkpoint = torch.load(filename, map_location=device)
+
+    # Get model class and initialization arguments
+    model_class = checkpoint['model_class']
+    init_args = checkpoint.get('model_init_args', {})
+
+    # Recreate model architecture
+    if init_args:
+        model = model_class(**init_args)
+    else:
+        model = model_class()
+
+    # Load weights
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model = model.to(device)
+
+    print(f"Model loaded from {filename} on device: {device}")
+    return model
+
+
+### Complexity Computation ###
 # Compute Bartlett et al. complexity
 def compute_complexity_bartlett(network: Net, n=1000, device=None):
     # Report
@@ -286,3 +320,4 @@ def compute_complexity_ours_opt(network: Net, n=1000, device=None):
     # Scale by 1/sqrt(n)
     complexity = complexity / np.sqrt(n)
     return complexity
+
