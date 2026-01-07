@@ -124,7 +124,7 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
                 # Forward pass + CE calculation
                 outputs  = model(images)
                 ce_loss  = criterion(outputs, labels)
-                reg_loss = l1_regularization(model, reg_lambda/ (L ** 2))
+                reg_loss = l1_regularization(model, reg_lambda/L)
                 loss = ce_loss + reg_loss 
 
                 # Back propagation
@@ -271,7 +271,7 @@ def ablation_study_varying_widths(args, min_width, max_width):
 
 if __name__ == '__main__':
     # Ablation study with depth
-    args = {'dataset' : 'mnist', 'hidden_dim' : 128} # Keep hidden dim at 128
+    args = {'dataset' : 'mnist', 'hidden_dim' : 256} # Keep hidden dim at 256
     results = ablation_study_varying_depths(args, min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
     save_json_dict(results, 'results/ablation_study_depth.json')
 
