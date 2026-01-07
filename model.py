@@ -251,6 +251,7 @@ def compute_complexity_ours(network: Net, n=1000, p=0.1, device=None):
             U_l = (m_l / s_l) * np.sqrt(d_out * d_in) 
         R_A += (U_l*prod_term) ** ((2*p) / (3*p + 2))
     complexity = R_A ** ((3*p + 2)/(2*p + 4))
+    complexity = complexity * np.sqrt(L)
 
     # Scale by 1/sqrt(n)
     complexity = complexity / np.sqrt(n)
@@ -323,6 +324,7 @@ def compute_complexity_ours_opt(network: Net, n=1000, device=None):
     
     # Final complexity computation using p_max
     complexity = R_A ** ((3 * p_max + 2) / (2 * p_max + 4))
+    complexity = complexity * np.sqrt(L)
 
     # Scale by 1/sqrt(n)
     complexity = complexity / np.sqrt(n)

@@ -123,7 +123,7 @@ def evaluate(model_file, dataset='mnist'):
 
     # Evaluate complexity measures
     print('------\nComplexity measures computation:')
-    cm_ours = np.log(compute_complexity_ours(model, n=len(train_dataloader.dataset)))
+    cm_ours = np.log(compute_complexity_ours(model, p=0.1, n=len(train_dataloader.dataset)))
     cm_ours_opt = np.log(compute_complexity_ours_opt(model, n=len(train_dataloader.dataset)))
     cm_bartlett = np.log(compute_complexity_bartlett(model, n=len(train_dataloader.dataset)))
     cm_paracount = np.log(compute_complexity_paracount(model, n=len(train_dataloader.dataset)))
@@ -187,28 +187,6 @@ def ablation_study_varying_widths(min_width, max_width):
         'train_loss' : train_losses,
         'test_loss' : test_losses
     }
-
-def results_visualization_utils(results, xaxis_data, xlabel, ylabel, 
-    save_dir='results', save_path='file.png'):
-    # Make result directory
-    pathlib.Path(save_dir).mkdir(parents=True, exist_ok=True)
-    save_path = os.path.join(save_dir, save_path)
-
-    # Initialize plot
-    _, ax = plt.subplots(figsize=(10, 7))
-    ax.tick_params(axis='both', which='major', labelsize=13)
-
-    # Visualize
-    for key, result in results.items():
-        ax.plot(xaxis_data, result, label=RESULT_KEYS[key], color=COLOR_KEYS[key], marker='o')
-    ax.set_xlabel(xlabel, fontdict=fontconfig)
-    ax.set_ylabel(ylabel, fontdict=fontconfig)
-
-    # Save figure
-    plt.grid()
-    plt.legend(loc='upper left', fontsize="15")
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=300)
 
 if __name__ == '__main__':
     # Ablation study with width

@@ -83,7 +83,7 @@ def spectral_regularization(model, lambda_spectral):
         spectral_loss += compute_spectral_norm(weight)
     return lambda_spectral * spectral_loss
 
-def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64, reg_lambda=1.0):
+def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64, reg_lambda=1e-2):
     # Get dataset 
     train_dataloader, test_dataloader = get_dataloader(name=dataset, batch_size=batch_size)
     num_train_batches = len(train_dataloader)
@@ -122,10 +122,10 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
                 labels = labels.to(model.device)
                 
                 # Forward pass + CE calculation
-                outputs = model(images)
-                ce_loss = criterion(outputs, labels)
-                sp_loss = spectral_regularization(model, reg_lambda/ (L ** 2))
-                loss = ce_loss + sp_loss # l1_loss
+                outputs  = model(images)
+                ce_loss  = criterion(outputs, labels)
+                reg_loss = l1_regularization(model, reg_lambda/ (L ** 2))
+                loss = ce_loss + reg_loss 
 
                 # Back propagation
                 loss.backward()
@@ -268,28 +268,6 @@ def ablation_study_varying_widths(args, min_width, max_width):
         'train_loss' : train_losses,
         'test_loss' : test_losses
     }
-
-def results_visualization_utils(results, xaxis_data, xlabel, ylabel, 
-    save_dir='results', save_path='file.png'):
-    # Make result directory
-    pathlib.Path(save_dir).mkdir(parents=True, exist_ok=True)
-    save_path = os.path.join(save_dir, save_path)
-
-    # Initialize plot
-    _, ax = plt.subplots(figsize=(10, 7))
-    ax.tick_params(axis='both', which='major', labelsize=13)
-
-    # Visualize
-    for key, result in results.items():
-        ax.plot(xaxis_data, result, label=RESULT_KEYS[key], color=COLOR_KEYS[key], marker='o')
-    ax.set_xlabel(xlabel, fontdict=fontconfig)
-    ax.set_ylabel(ylabel, fontdict=fontconfig)
-
-    # Save figure
-    plt.grid()
-    plt.legend(loc='upper left', fontsize="15")
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=300)
 
 if __name__ == '__main__':
     # Ablation study with depth
