@@ -83,7 +83,7 @@ def spectral_regularization(model, lambda_spectral):
         spectral_loss += compute_spectral_norm(weight)
     return lambda_spectral * spectral_loss
 
-def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64, reg_lambda=1e-1):
+def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64, reg_lambda=1e-2):
     # Get dataset 
     train_dataloader, test_dataloader = get_dataloader(name=dataset, batch_size=batch_size)
     num_train_batches = len(train_dataloader)
