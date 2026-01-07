@@ -60,33 +60,34 @@ def evaluate(model_file, dataset='mnist'):
     # Train model
     model.eval()
     print('------\nLoss computation on training data:')
-    with tqdm.tqdm(total=len(train_dataloader)) as pbar:
-        total_loss, correct, total = 0.0, 0, 0
-        for i, (images, labels) in enumerate(train_dataloader):
-            # Move data to device
-            images = images.to(model.device)
-            labels = labels.to(model.device)
-            
-            # Forward pass + CE calculation
-            outputs = model(images)
-            loss = criterion(outputs, labels)
+    with torch.no_grad():
+        with tqdm.tqdm(total=len(train_dataloader)) as pbar:
+            total_loss, correct, total = 0.0, 0, 0
+            for i, (images, labels) in enumerate(train_dataloader):
+                # Move data to device
+                images = images.to(model.device)
+                labels = labels.to(model.device)
+                
+                # Forward pass + CE calculation
+                outputs = model(images)
+                loss = criterion(outputs, labels)
 
-            # Update loss and accuracy for this epoch
-            total_loss += loss.item()
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-            
-            # Update progress bar
-            pbar.set_postfix({
-                'train_loss' : f'{loss.item():.5f}',
-                'batch' : f'#[{i+1}/{num_train_batches}]' 
-            })
-            pbar.update(1)
-        time.sleep(0.1)
-        final_average_train_loss = total_loss / (num_train_batches * BATCH_SIZE)
-        final_train_accuracy = 100 * correct / total
-        print(f'\nAverage train loss: {final_average_train_loss:.4f}, Accuracy: {final_train_accuracy:.2f}%\n------\n')
+                # Update loss and accuracy for this epoch
+                total_loss += loss.item()
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+                
+                # Update progress bar
+                pbar.set_postfix({
+                    'train_loss' : f'{loss.item():.5f}',
+                    'batch' : f'#[{i+1}/{num_train_batches}]' 
+                })
+                pbar.update(1)
+            time.sleep(0.1)
+            final_average_train_loss = total_loss / (num_train_batches * BATCH_SIZE)
+            final_train_accuracy = 100 * correct / total
+            print(f'\nAverage train loss: {final_average_train_loss:.4f}, Accuracy: {final_train_accuracy:.2f}%\n------\n')
 
     # Evaluate the model
     model.eval()
@@ -141,7 +142,7 @@ def ablation_study_varying_depths(min_depth, max_depth):
 
     # Conduct training
     for i, L in enumerate(depths):
-        print(f'[INFO] Experiment #[{i+1}/{len(depths)}], L = {L}')
+        print(f'\n======\n[INFO] Experiment #[{i+1}/{len(depths)}], L = {L}')
         cm, model, train_loss, test_loss, train_acc, test_acc = evaluate(
             model_file=f'{SAVE_DIR}/L{L}.pt',
             dataset='mnist'
@@ -168,7 +169,7 @@ def ablation_study_varying_widths(min_width, max_width):
 
     # Conduct training
     for i, W in enumerate(widths):
-        print(f'[INFO] Experiment #[{i+1}/{len(widths)}], W = {W*32}')
+        print(f'\n======\n[INFO] Experiment #[{i+1}/{len(widths)}], W = {W*32}')
         cm, model, train_loss, test_loss, train_acc, test_acc = evaluate(
             model_file=f'{SAVE_DIR}/W{W * 32}.pt',
             dataset='mnist'

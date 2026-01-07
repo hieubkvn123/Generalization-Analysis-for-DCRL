@@ -182,7 +182,7 @@ def compute_complexity_bartlett(network: Net, n=1000, device=None):
 # Compute Para. count complexity 
 def compute_complexity_paracount(network: Net, n=1000, device=None):
     # Report
-    print('[INFO] Computing parameter-counting complexity measure...')
+    print('[INFO] Computing Graf et al. (para-count) complexity measure...')
     network.eval()
 
     # Get device
@@ -309,7 +309,7 @@ def compute_complexity_ours_opt(network: Net, n=1000, device=None):
                 U_l = (m_l / s_l) * np.sqrt(d_out * d_in)
             
             # Compute the quantity to maximize
-            value = (U_l * prod_term) ** ((2 * p_l) / (3 * p_l + 2))
+            value = (U_l * prod_term) # ** ((2 * p_l) / (3 * p_l + 2))
             
             if value < best_value:
                 best_value = value
@@ -319,8 +319,7 @@ def compute_complexity_ours_opt(network: Net, n=1000, device=None):
         p_max = max(p_max, best_p_l)
         
         # Add the best contribution for this layer
-        print(f'Layer {l}, best value {best_value}, best p_ell {best_p_l}')
-        R_A += best_value
+        R_A += best_value ** ((2 * p_l) / (3 * p_l + 2))
     
     # Final complexity computation using p_max
     complexity = R_A ** ((3 * p_max + 2) / (2 * p_max + 4))
