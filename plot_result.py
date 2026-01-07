@@ -19,7 +19,7 @@ fontconfig = {
 # Constants
 SAVE_PATH = 'results/ablation_studies.pdf'
 RESULT_KEYS = {
-    'bartlett'  : 'Bartlett et al.', 
+    # 'bartlett'  : 'Bartlett et al.', 
     'paracount' : 'Graf et al.', 
     'ours'      : 'Ours', 
     # 'ours_opt'  : 'Ours (line-search)'
