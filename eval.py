@@ -9,7 +9,7 @@ from dataset import get_dataloader
 from common import apply_model_to_batch, save_json_dict
 from model import (
     get_model,
-    save_model,
+    load_model,
     compute_complexity_ours,
     compute_complexity_ours_opt,
     compute_complexity_bartlett,
@@ -27,7 +27,7 @@ plt.rcParams['text.usetex'] = True
 # Constants for training
 MAX_EPOCHS = 1000
 BATCH_SIZE = 64
-TRAIN_LOSS_THRESHOLD = 0.1 # 0.05 # 1e-2
+TRAIN_LOSS_THRESHOLD = 0.05 # 1e-2
 
 # Constants for ablation study
 MIN_WIDTH = 1
@@ -43,125 +43,58 @@ RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 'ours'
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours': 'tab:blue', 'ours_opt': 'tab:cyan'}
 SAVE_DIR    = 'checkpoints'
 
-# Create save directory if not available
-pathlib.Path(SAVE_DIR).mkdir(parents=True, exist_ok=True)
-
-# Function to compute L1 norm of all parameters
-def compute_l1_norm(model):
-    l1_norm = 0.0
-    num_params = 0.0
-    for param in model.parameters():
-        l1_norm += torch.sum(torch.abs(param)).item()
-        num_params += len(param)
-    print(num_params)
-    return l1_norm / num_params
-
-# Function to compute L1 regularization loss
-def l1_regularization(model, lambda_l1):
-    l1_loss = 0.0
-    for param in model.parameters():
-        l1_loss += torch.sum(torch.abs(param))
-    return lambda_l1 * l1_loss
-
-# Function to compute spectral norm (largest singular value) of a matrix
-def compute_spectral_norm(weight_matrix):
-    # Using torch.linalg.matrix_norm with ord=2 computes spectral norm
-    return torch.linalg.matrix_norm(weight_matrix, ord=2)
-
-# Function to compute spectral norms of all weight matrices
-def compute_all_spectral_norms(model):
-    spectral_norms = []
-    for weight in model.get_weight_matrices():
-        spec_norm = compute_spectral_norm(weight)
-        spectral_norms.append(spec_norm.item())
-    return spectral_norms, sum(spectral_norms)
-
-# Function to compute spectral regularization loss
-def spectral_regularization(model, lambda_spectral):
-    spectral_loss = 0.0
-    for weight in model.get_weight_matrices():
-        spectral_loss += compute_spectral_norm(weight)
-    return lambda_spectral * spectral_loss
-
-def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64, reg_lambda=1.0):
+def evaluate(model_file, dataset='mnist'):
     # Get dataset 
-    train_dataloader, test_dataloader = get_dataloader(name=dataset, batch_size=batch_size)
+    train_dataloader, test_dataloader = get_dataloader(name=dataset, batch_size=BATCH_SIZE)
     num_train_batches = len(train_dataloader)
     num_test_batches = len(test_dataloader)
     
-    # Load model - output dimension should match number of classes
-    model = get_model(in_dim=DATASET_TO_INDIM[dataset], out_dim=num_classes, hidden_dim=hidden_dim, L=L)
-    model = model.to(model.device)
-
-    # Optimization algorithm
-    optimizer = torch.optim.Adam(
-        model.parameters(), 
-        lr=0.0009,
-    )
-    
-    # Loss function for classification
-    criterion = torch.nn.CrossEntropyLoss(reduction='sum')
+    # Load model 
+    model = load_model(model_file)
 
     # To be stored as final result
     final_average_train_loss, final_average_test_loss = 0, 0
     final_train_accuracy, final_test_accuracy = 0, 0
 
     # Train model
-    model.train()
-    for epoch in range(epochs):
-        print(f'[*] Epoch #[{epoch+1}/{epochs}]:')
-        with tqdm.tqdm(total=len(train_dataloader)) as pbar:
-            total_loss = 0.0
-            correct = 0
-            total = 0
-            for i, (images, labels) in enumerate(train_dataloader):
-                optimizer.zero_grad()
+    model.eval()
+    print('------\nLoss computation on training data:')
+    with tqdm.tqdm(total=len(train_dataloader)) as pbar:
+        total_loss, correct, total = 0.0, 0, 0
+        for i, (images, labels) in enumerate(train_dataloader):
+            optimizer.zero_grad()
 
-                # Move data to device
-                images = images.to(model.device)
-                labels = labels.to(model.device)
-                
-                # Forward pass + CE calculation
-                outputs = model(images)
-                ce_loss = criterion(outputs, labels)
-                sp_loss = spectral_regularization(model, reg_lambda/ (L ** 2))
-                loss = ce_loss + sp_loss # l1_loss
+            # Move data to device
+            images = images.to(model.device)
+            labels = labels.to(model.device)
+            
+            # Forward pass + CE calculation
+            outputs = model(images)
+            loss = criterion(outputs, labels)
 
-                # Back propagation
-                loss.backward()
-                optimizer.step()
-
-                # Update loss and accuracy for this epoch
-                total_loss += loss.item()
-                _, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-                
-                # Update progress bar
-                pbar.set_postfix({
-                    'train_loss' : f'{loss.item():.5f}',
-                    'batch' : f'#[{i+1}/{num_train_batches}]' 
-                })
-                pbar.update(1)
-            time.sleep(0.1)
-            sp_norms, sum_sp_norms = compute_all_spectral_norms(model) 
-            avg_sp_norm = sum_sp_norms / len(sp_norms)
-            final_average_train_loss = total_loss / (num_train_batches * batch_size)
-            final_train_accuracy = 100 * correct / total
-            print(f'\nAverage train loss: {final_average_train_loss:.4f}, Accuracy: {final_train_accuracy:.2f}%, Spectral norm: {avg_sp_norm:.2f}\n------\n')
-
-        if final_average_train_loss <= TRAIN_LOSS_THRESHOLD:
-            print('[INFO] Train loss target reached, early stopping...')
-            break
+            # Update loss and accuracy for this epoch
+            total_loss += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+            
+            # Update progress bar
+            pbar.set_postfix({
+                'train_loss' : f'{loss.item():.5f}',
+                'batch' : f'#[{i+1}/{num_train_batches}]' 
+            })
+            pbar.update(1)
+        time.sleep(0.1)
+        final_average_train_loss = total_loss / (num_train_batches * batch_size)
+        final_train_accuracy = 100 * correct / total
+        print(f'\nAverage train loss: {final_average_train_loss:.4f}, Accuracy: {final_train_accuracy:.2f}%\n------\n')
 
     # Evaluate the model
     model.eval()
-    print('------\nEvaluation:')
+    print('------\nLoss computation on testing data:')
     with torch.no_grad():
         with tqdm.tqdm(total=len(test_dataloader)) as pbar:
-            total_loss = 0.0
-            correct = 0
-            total = 0
+            total_loss, correct, total = 0.0, 0, 0
             for i, (images, labels) in enumerate(test_dataloader):
                 # Move data to device
                 images = images.to(model.device)
@@ -201,7 +134,7 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
         'paracount': cm_paracount
     }, model, final_average_train_loss, final_average_test_loss, final_train_accuracy, final_test_accuracy
 
-def ablation_study_varying_depths(args, min_depth, max_depth):
+def ablation_study_varying_depths(min_depth, max_depth):
     # Initialize results
     depths = list(range(min_depth, max_depth + 1))
     results_depth = {x: [] for x in list(RESULT_KEYS.keys())} 
@@ -210,12 +143,9 @@ def ablation_study_varying_depths(args, min_depth, max_depth):
     # Conduct training
     for i, L in enumerate(depths):
         print(f'[INFO] Experiment #[{i+1}/{len(depths)}], L = {L}')
-        cm, model, train_loss, test_loss, train_acc, test_acc = train(
-            epochs=MAX_EPOCHS, 
-            batch_size=BATCH_SIZE,
-            L=L,
-            dataset=args['dataset'],
-            hidden_dim=args['hidden_dim']
+        cm, model, train_loss, test_loss, train_acc, test_acc = evaluate(
+            model_file=f'{SAVE_DIR}/L{L}.pt',
+            dataset='mnist'
         )
 
         # Save results
@@ -224,10 +154,6 @@ def ablation_study_varying_depths(args, min_depth, max_depth):
         train_losses.append(train_loss)
         test_losses.append(test_loss)
 
-        # Save models
-        save_file = os.path.join(SAVE_DIR, f'L{L}.pt')
-        save_model(model, save_file)
-
     return {
         'depths' : depths,
         'complexities' : results_depth,
@@ -235,7 +161,7 @@ def ablation_study_varying_depths(args, min_depth, max_depth):
         'test_loss' : test_losses
     }
 
-def ablation_study_varying_widths(args, min_width, max_width):
+def ablation_study_varying_widths(min_width, max_width):
     # Initialize results
     widths = list(range(min_width, max_width + 1))
     results_width = {x: [] for x in list(RESULT_KEYS.keys())} 
@@ -244,12 +170,9 @@ def ablation_study_varying_widths(args, min_width, max_width):
     # Conduct training
     for i, W in enumerate(widths):
         print(f'[INFO] Experiment #[{i+1}/{len(widths)}], W = {W*32}')
-        cm, model, train_loss, test_loss, train_acc, test_acc = train(
-            epochs=MAX_EPOCHS, 
-            batch_size=BATCH_SIZE,
-            L=args['L'],
-            dataset=args['dataset'],
-            hidden_dim=W * 32
+        cm, model, train_loss, test_loss, train_acc, test_acc = evaluate(
+            model_file='{SAVE_DIR}/W{W * 32}.pt',
+            dataset='mnist'
         )
 
         # Save results
@@ -257,10 +180,6 @@ def ablation_study_varying_widths(args, min_width, max_width):
             results_width[key].append(item)
         train_losses.append(train_loss)
         test_losses.append(test_loss)
-
-        # Save models
-        save_file = os.path.join(SAVE_DIR, f'W{W * 32}.pt')
-        save_model(model, save_file)
     
     return {
         'widths' : widths, 
@@ -293,11 +212,9 @@ def results_visualization_utils(results, xaxis_data, xlabel, ylabel,
 
 if __name__ == '__main__':
     # Ablation study with depth
-    args = {'dataset' : 'mnist', 'hidden_dim' : 64} # Keep hidden dim at 64
-    results = ablation_study_varying_depths(args, min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
+    results = ablation_study_varying_depths(min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
     save_json_dict(results, 'results/ablation_study_depth.json')
 
     # Ablation study with width
-    args = {'dataset' : 'mnist', 'L' : 3} # Keep depth at 3 layers
-    results = ablation_study_varying_widths(args, min_width=MIN_WIDTH, max_width=MAX_WIDTH)
-    save_json_dict(results, 'results/ablation_study_width.json')
+    #results = ablation_study_varying_widths(min_width=MIN_WIDTH, max_width=MAX_WIDTH)
+    #save_json_dict(results, 'results/ablation_study_width.json')

@@ -17,6 +17,14 @@ class Net(nn.Module):
         self.hidden_dim = hidden_dim
         self.L = L
 
+        # For re-loading model
+        self._init_args = {
+            'in_dim': in_dim,
+            'out_dim': out_dim,
+            'hidden_dim': hidden_dim,
+            'L': L
+        }
+
         # Store device
         if device is None:
             self.device = get_default_device()
