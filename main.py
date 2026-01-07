@@ -271,7 +271,7 @@ def ablation_study_varying_widths(args, min_width, max_width):
 
 if __name__ == '__main__':
     # Ablation study with depth
-    args = {'dataset' : 'mnist', 'hidden_dim' : 64} # Keep hidden dim at 64
+    args = {'dataset' : 'mnist', 'hidden_dim' : 128} # Keep hidden dim at 128
     results = ablation_study_varying_depths(args, min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
     save_json_dict(results, 'results/ablation_study_depth.json')
 
