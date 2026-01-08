@@ -11,7 +11,6 @@ from model import (
     get_model,
     save_model,
     compute_complexity_ours,
-    compute_complexity_ours_opt,
     compute_complexity_bartlett,
     compute_complexity_paracount
 )
@@ -190,12 +189,10 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
     # Evaluate complexity measures
     print('------\nComplexity measures computation:')
     cm_ours = np.log(compute_complexity_ours(model, n=len(train_dataloader.dataset)))
-    cm_ours_opt = np.log(compute_complexity_ours_opt(model, n=len(train_dataloader.dataset)))
     cm_bartlett = np.log(compute_complexity_bartlett(model, n=len(train_dataloader.dataset)))
     cm_paracount = np.log(compute_complexity_paracount(model, n=len(train_dataloader.dataset)))
     return {
         'ours': cm_ours,
-        'ours_opt': cm_ours_opt,
         'bartlett': cm_bartlett,
         'paracount': cm_paracount
     }, model, final_average_train_loss, final_average_test_loss, final_train_accuracy, final_test_accuracy
