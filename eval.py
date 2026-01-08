@@ -51,7 +51,7 @@ def evaluate(model_file, dataset='mnist'):
     
     # Load model 
     model = load_model(model_file)
-    criterion = torch.nn.CrossEntropyLoss(reduction='sum')
+    criterion = torch.nn.MultiMarginLoss(p=1, margin=1.0, reduction='sum')
 
     # To be stored as final result
     final_average_train_loss, final_average_test_loss = 0, 0
