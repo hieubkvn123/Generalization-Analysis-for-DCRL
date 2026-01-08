@@ -39,24 +39,23 @@ class Net(nn.Module):
         # Create layers
         self.fc_hidden_layers = []
         for _ in range(1, self.L):
-            self.fc_hidden_layers.append(
-                nn.Linear(hidden_dim, hidden_dim, bias=False)
-            )
-            self.fc_hidden_layers.append(
-                nn.ReLU()    
-            )
+            self.fc_hidden_layers.append( nn.Linear(hidden_dim, hidden_dim, bias=False) )
+            self.fc_hidden_layers.append( nn.ReLU() )
+            self.fc_hidden_layers.append( nn.Dropout(0.2) )
         self.v = nn.Sequential(
             nn.Linear(in_dim, hidden_dim, bias=False),
             nn.ReLU(), 
+            nn.Dropout(0.2),
             *self.fc_hidden_layers
         )
         self.U = nn.Linear(hidden_dim, out_dim)
 
-        # Store reference matrices
-        self.references = []
-        for l in range(1, self.L + 1):
-            self.references.append(self._get_v_layer_weights(layer=l))
-        
+        # Initialization
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='relu')
+                nn.init.constant_(m.bias, 0)
+
     def _tensor_to_numpy(self, x):
         if self.device_type == 'cuda':
             return x.cpu().detach().numpy()            
