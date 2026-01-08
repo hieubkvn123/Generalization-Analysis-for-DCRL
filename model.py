@@ -106,7 +106,7 @@ class Net(nn.Module):
 def get_model(in_dim=784, out_dim=64, hidden_dim=128, L=10, device=None):
     return Net(in_dim=in_dim, out_dim=out_dim, hidden_dim=hidden_dim, L=L, device=device)
 
-def prune_matrix(matrix, threshold=1e-5):
+def prune_matrix(matrix, threshold=1e-3):
     pruned = matrix.copy()
     pruned[np.abs(pruned) < threshold] = 0
     return pruned
