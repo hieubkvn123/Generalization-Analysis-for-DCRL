@@ -54,7 +54,6 @@ class Net(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='relu')
-                nn.init.constant_(m.bias, 0)
 
     def _tensor_to_numpy(self, x):
         if self.device_type == 'cuda':
