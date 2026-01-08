@@ -39,8 +39,8 @@ DATASET_TO_INDIM = {
   'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
   'cifar10': 32 * 32 * 3     # 3072 for flattened, or use (3, 32, 32) for CNNs
 }
-RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 'ours': 'Ours'}
-COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours': 'tab:blue'}
+RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 'ours_p1': 'Ours ($p=0.1$)', 'ours_p5': 'Ours ($p=0.5$)'}
+COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours_p1': 'tab:blue', 'ours_p5': 'tab:green'}
 SAVE_DIR    = 'checkpoints'
 
 def evaluate(model_file, dataset='mnist'):
@@ -123,11 +123,13 @@ def evaluate(model_file, dataset='mnist'):
 
     # Evaluate complexity measures
     print('------\nComplexity measures computation:')
-    cm_ours = np.log(compute_complexity_ours(model, p=0.1, n=len(train_dataloader.dataset)))
-    cm_bartlett = np.log(compute_complexity_bartlett(model, n=len(train_dataloader.dataset)))
+    cm_ours_p1   = np.log(compute_complexity_ours(model, p=0.1, n=len(train_dataloader.dataset)))
+    cm_ours_p5   = np.log(compute_complexity_ours(model, p=0.5, n=len(train_dataloader.dataset)))
+    cm_bartlett  = np.log(compute_complexity_bartlett(model, n=len(train_dataloader.dataset)))
     cm_paracount = np.log(compute_complexity_paracount(model, n=len(train_dataloader.dataset)))
     return {
-        'ours': cm_ours,
+        'ours_p1': cm_ours_p1,
+        'ours_p5': cm_ours_p5,
         'bartlett': cm_bartlett,
         'paracount': cm_paracount
     }, model, final_average_train_loss, final_average_test_loss, final_train_accuracy, final_test_accuracy
