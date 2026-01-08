@@ -5,7 +5,7 @@ import tqdm
 import itertools
 import numpy as np
 from common import get_default_device
-from norms import frobenius_norm, lp_norm, l21_norm, spectral_norm 
+from norms import frobenius_norm, l0_norm, lp_norm, l21_norm, spectral_norm 
 
 # Network definition
 class Net(nn.Module):
@@ -210,6 +210,64 @@ def compute_complexity_paracount(network: Net, n=1000, device=None):
         A_l = network._get_v_layer_weights(layer=l)
         d_out, d_in = A_l.shape
         W += d_out * d_in
+
+    # Scale by 1/sqrt(n)
+    complexity = np.sqrt((L * W)/n)
+    return complexity
+
+# Compute Para. count complexity 
+def compute_complexity_paracount(network: Net, n=1000, device=None):
+    # Report
+    print('[INFO] Computing Graf et al. (para-count) complexity measure...')
+    network.eval()
+
+    # Get device
+    if device is None:
+        device = get_default_device()
+        network = network.to(device)
+        network.device = device
+
+    # Get necessary constants
+    L = network.L 
+    d = network.out_dim
+
+    # Initialization
+    W = 0.0
+    
+    # Compute complexity
+    for l in range(1, L+1):
+        A_l = network._get_v_layer_weights(layer=l)
+        d_out, d_in = A_l.shape
+        W += d_out * d_in
+
+    # Scale by 1/sqrt(n)
+    complexity = np.sqrt((L * W)/n)
+    return complexity
+
+# Compute non-zero Para. count complexity 
+def compute_complexity_paracount_nonzero(network: Net, n=1000, device=None):
+    # Report
+    print('[INFO] Computing Graf et al. (para-count) complexity measure...')
+    network.eval()
+
+    # Get device
+    if device is None:
+        device = get_default_device()
+        network = network.to(device)
+        network.device = device
+
+    # Get necessary constants
+    L = network.L 
+    d = network.out_dim
+
+    # Initialization
+    W = 0.0
+    
+    # Compute complexity
+    for l in range(1, L+1):
+        A_l = network._get_v_layer_weights(layer=l)
+        A_l = prune_matrix(A_l)
+        W += l0_norm(A_l)
 
     # Scale by 1/sqrt(n)
     complexity = np.sqrt((L * W)/n)

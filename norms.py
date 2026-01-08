@@ -17,3 +17,6 @@ def spectral_norm(A):
 
 def lp_norm(A, p=0.5):
     return np.sum(np.abs(A) ** p) ** (1.0 / p)
+
+def l0_norm(A):
+    return np.count_nonzero(A)

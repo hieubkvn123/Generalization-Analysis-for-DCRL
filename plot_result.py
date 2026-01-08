@@ -21,6 +21,7 @@ SAVE_PATH = 'results/ablation_studies.pdf'
 RESULT_KEYS = {
     'bartlett'  : 'Bartlett et al.', 
     'paracount' : 'Graf et al.', 
+    'ours_p0'   : 'Ours ($p=0.0$)', 
     'ours_p1'   : 'Ours ($p=0.1$)', 
     'ours_p5'   : 'Ours ($p=0.5$)', 
     # 'ours_opt'  : 'Ours (line-search)'
@@ -28,6 +29,7 @@ RESULT_KEYS = {
 COLOR_KEYS  = {
     'bartlett'  : 'tab:orange', 
     'paracount' : 'tab:red', 
+    'ours_p0'   : 'tab:cyan', 
     'ours_p1'   : 'tab:blue', 
     'ours_p5'   : 'tab:green', 
     # 'ours_opt'  : 'tab:purple'
