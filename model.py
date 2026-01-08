@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 
 import tqdm
+import itertools
 import numpy as np
 from common import get_default_device
 from norms import frobenius_norm, lp_norm, l21_norm, spectral_norm 
@@ -215,10 +216,15 @@ def compute_complexity_paracount(network: Net, n=1000, device=None):
     return complexity
 
 # Compute our complexity 
-def compute_complexity_ours(network: Net, n=1000, p=0.1, device=None):
+def compute_complexity_ours(network: Net, n=1000, p=0.1, device=None, verbose=True):
     # Report
-    print('[INFO] Computing our complexity measure...')
+    if verbose: print('[INFO] Computing our complexity measure...')
     network.eval()
+
+    # Get the list of orders
+    if isinstance(p, float):
+        p = [p] * network.L
+    assert len(p) == network.L
 
     # Get device
     if device is None:
@@ -243,21 +249,23 @@ def compute_complexity_ours(network: Net, n=1000, p=0.1, device=None):
     
     # Compute complexity
     R_A = 0.0
-    for l in range(1, L+1):
+    layers = list(range(1, L+1))
+    for p_l, l in zip(p, layers):
         A_l = network._get_v_layer_weights(layer=l)
         A_l = prune_matrix(A_l)
         d_out, d_in = A_l.shape
 
         # Compute all necessary norms
         s_l = spectral_norm(A_l)
-        m_l = np.sum(np.abs(A_l) ** p) 
+        m_l = np.sum(np.abs(A_l) ** p_l)
         W_l = np.sqrt((d_out ** 2) * d_in)
         if l == L: W_l = np.sqrt(d_out * d_in)
 
         # Compute U_l
-        U_l = m_l ** (2/(3*p + 2)) * ( (W_l * (prod_term / s_l)) ** ((2 * p) / (3 * p + 2)) )
+        U_l = m_l ** (2/(3*p_l + 2)) * ( (W_l * (prod_term / s_l)) ** ((2*p_l) / (3*p_l + 2)) )
         R_A += U_l 
-    complexity = R_A ** ((3*p + 2)/(2*p + 4))
+    rho = np.max(p)
+    complexity = R_A ** ((3*rho + 2)/(2*rho + 4))
     complexity = complexity * np.sqrt(L)
 
     # Scale by 1/sqrt(n)
@@ -266,76 +274,26 @@ def compute_complexity_ours(network: Net, n=1000, p=0.1, device=None):
 
 # Compute our complexity with layer-wise optimal p
 def compute_complexity_ours_opt(network: Net, n=1000, device=None):
-    # Report
     print('[INFO] Computing our complexity measure with layer-wise optimal p...')
-    network.eval()
-
+    
     # Get device
     if device is None:
         device = get_default_device()
         network = network.to(device)
         network.device = device
 
-    # Get necessary constants
-    L = network.L 
-    d = network.out_dim
-
     # Define p search space
+    L = network.L
     p_candidates = np.arange(0.05, 1.0, 0.05)
-
-    # Compute the product term (uses spectral norms)
-    prod_term = 1.0
-    for l in range(1, L+1):
-        A_l = network._get_v_layer_weights(layer=l)
-        A_l = prune_matrix(A_l)
-        s_l = spectral_norm(A_l)
-        prod_term += s_l
     
-    # Track maximum p across all layers
-    p_max = 0.0
+    # Grid search over all combinations of p values
+    best_complexity = float('inf')
+    best_p_values = None
     
-    # Compute complexity with optimal p for each layer
-    R_A = 0.0
-    for l in range(1, L+1):
-        A_l = network._get_v_layer_weights(layer=l)
-        A_l = prune_matrix(A_l)
-        d_out, d_in = A_l.shape
-
-        # Compute spectral norm (independent of p)
-        s_l = spectral_norm(A_l)
-
-        # Find optimal p_l for this layer (maximize the contribution)
-        best_p_l = None
-        best_value = float('inf')
-        
-        for p_l in p_candidates:
-            # Compute L_p norm for this candidate p_l
-            m_l = lp_norm(A_l, p=p_l)
-            
-            # Compute U_l with this p_l
-            if l != L:
-                U_l = (m_l / s_l) * np.sqrt((d_out ** 2) * d_in) 
-            else:
-                U_l = (m_l / s_l) * np.sqrt(d_out * d_in)
-            
-            # Compute the quantity to maximize
-            value = (U_l * prod_term) ** ((2 * p_l) / (3 * p_l + 2))
-            
-            if value < best_value:
-                best_value = value
-                best_p_l = p_l
-        
-        # Update p_max
-        p_max = max(p_max, best_p_l)
-        
-        # Add the best contribution for this layer
-        R_A += best_value ** ((2 * p_l) / (3 * p_l + 2))
+    for p_combination in itertools.product(p_candidates, repeat=L):
+        complexity = compute_complexity_ours(network, n=n, p=list(p_combination), device=device, verbose=False)
+        if complexity < best_complexity:
+            best_complexity = complexity
+            best_p_values = p_combination
     
-    # Final complexity computation using p_max
-    complexity = R_A ** ((3 * p_max + 2) / (2 * p_max + 4))
-    complexity = complexity * np.sqrt(L)
-
-    # Scale by 1/sqrt(n)
-    complexity = complexity / np.sqrt(n)
-    return complexity
-
+    return best_complexity
