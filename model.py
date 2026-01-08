@@ -106,6 +106,11 @@ class Net(nn.Module):
 def get_model(in_dim=784, out_dim=64, hidden_dim=128, L=10, device=None):
     return Net(in_dim=in_dim, out_dim=out_dim, hidden_dim=hidden_dim, L=L, device=device)
 
+def prune_matrix(matrix, threshold=1e-5):
+    pruned = matrix.copy()
+    pruned[np.abs(pruned) < threshold] = 0
+    return pruned
+
 ## Save and load functions ##
 def save_model(model, filename):
     torch.save({
@@ -163,6 +168,7 @@ def compute_complexity_bartlett(network: Net, n=1000, device=None):
     prod_term, sum_term = 1.0, 0.0
     for l in range(1, L+1):
         A_l = network._get_v_layer_weights(layer=l)
+        A_l = prune_matrix(A_l)
 
         # Compute all necessary norms
         s_l = spectral_norm(A_l)
@@ -231,6 +237,7 @@ def compute_complexity_ours(network: Net, n=1000, p=0.1, device=None):
     prod_term = 1.0
     for l in range(1, L+1):
         A_l = network._get_v_layer_weights(layer=l)
+        A_l = prune_matrix(A_l)
         s_l = spectral_norm(A_l)
         prod_term += s_l
     
@@ -238,18 +245,18 @@ def compute_complexity_ours(network: Net, n=1000, p=0.1, device=None):
     R_A = 0.0
     for l in range(1, L+1):
         A_l = network._get_v_layer_weights(layer=l)
+        A_l = prune_matrix(A_l)
         d_out, d_in = A_l.shape
 
         # Compute all necessary norms
         s_l = spectral_norm(A_l)
-        m_l = lp_norm(A_l, p=p)
+        m_l = np.sum(np.abs(A_l) ** p) 
+        W_l = np.sqrt((d_out ** 2) * d_in)
+        if l == L: W_l = np.sqrt(d_out * d_in)
 
         # Compute U_l
-        if l != L:
-            U_l = (m_l / s_l) * np.sqrt((d_out ** 2) * d_in) 
-        else:
-            U_l = (m_l / s_l) * np.sqrt(d_out * d_in) 
-        R_A += (U_l*prod_term) ** ((2*p) / (3*p + 2))
+        U_l = m_l ** (2/(3*p + 2)) * ( (W_l * (prod_term / s_l)) ** ((2 * p) / (3 * p + 2)) )
+        R_A += U_l 
     complexity = R_A ** ((3*p + 2)/(2*p + 4))
     complexity = complexity * np.sqrt(L)
 
@@ -280,6 +287,7 @@ def compute_complexity_ours_opt(network: Net, n=1000, device=None):
     prod_term = 1.0
     for l in range(1, L+1):
         A_l = network._get_v_layer_weights(layer=l)
+        A_l = prune_matrix(A_l)
         s_l = spectral_norm(A_l)
         prod_term += s_l
     
@@ -290,6 +298,7 @@ def compute_complexity_ours_opt(network: Net, n=1000, device=None):
     R_A = 0.0
     for l in range(1, L+1):
         A_l = network._get_v_layer_weights(layer=l)
+        A_l = prune_matrix(A_l)
         d_out, d_in = A_l.shape
 
         # Compute spectral norm (independent of p)
@@ -310,7 +319,7 @@ def compute_complexity_ours_opt(network: Net, n=1000, device=None):
                 U_l = (m_l / s_l) * np.sqrt(d_out * d_in)
             
             # Compute the quantity to maximize
-            value = (U_l * prod_term) # ** ((2 * p_l) / (3 * p_l + 2))
+            value = (U_l * prod_term) ** ((2 * p_l) / (3 * p_l + 2))
             
             if value < best_value:
                 best_value = value
