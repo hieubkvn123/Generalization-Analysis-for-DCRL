@@ -38,7 +38,7 @@ DATASET_TO_INDIM = {
   'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
   'cifar10': 32 * 32 * 3     # 3072 for flattened, or use (3, 32, 32) for CNNs
 }
-REG_CONSTS  = {2: 0.1, 3: 0.01, 4: 0.01, 5: 0.01, 6: 0.005, 7: 0.002, 8: 0.0005, 9: 5e-05, 10: 1e-05}
+REG_CONSTS  = {2: 0.01, 3: 0.01, 4: 0.01, 5: 0.01, 6: 0.005, 7: 0.002, 8: 0.001, 9: 1e-04, 10: 5e-05}
 RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 'ours': 'Ours', 'ours_opt': 'Ours (line search)'}
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours': 'tab:blue', 'ours_opt': 'tab:cyan'}
 SAVE_DIR    = 'checkpoints'
