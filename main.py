@@ -31,9 +31,9 @@ TRAIN_LOSS_THRESHOLD = 0.1 # 0.05 # 1e-2
 
 # Constants for ablation study
 MIN_WIDTH = 1
-MIN_DEPTH = 2
+MIN_DEPTH = 9
 MAX_WIDTH = MIN_WIDTH + 7
-MAX_DEPTH = MIN_DEPTH + 8
+MAX_DEPTH = MIN_DEPTH + 1 # 8
 DATASET_TO_INDIM = {
   'mnist': 28 * 28,          # 784 for flattened, or use (1, 28, 28) for CNNs
   'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
@@ -83,7 +83,7 @@ def spectral_regularization(model, lambda_spectral):
         spectral_loss += compute_spectral_norm(weight)
     return lambda_spectral * spectral_loss
 
-def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64, reg_lambda=0.005):
+def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64, reg_lambda=0.0005):
     # Get dataset 
     train_dataloader, test_dataloader = get_dataloader(name=dataset, batch_size=batch_size)
     num_train_batches = len(train_dataloader)
@@ -144,11 +144,9 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
                 })
                 pbar.update(1)
             time.sleep(0.1)
-            sp_norms, sum_sp_norms = compute_all_spectral_norms(model) 
-            avg_sp_norm = sum_sp_norms / len(sp_norms)
             final_average_train_loss = total_loss / (num_train_batches * batch_size)
             final_train_accuracy = 100 * correct / total
-            print(f'\nAverage train loss: {final_average_train_loss:.4f}, Accuracy: {final_train_accuracy:.2f}%, Spectral norm: {avg_sp_norm:.2f}\n------\n')
+            print(f'\nAverage train loss: {final_average_train_loss:.4f}, Accuracy: {final_train_accuracy:.2f}%\n------\n')
 
         if final_average_train_loss <= TRAIN_LOSS_THRESHOLD:
             print('[INFO] Train loss target reached, early stopping...')
@@ -276,6 +274,6 @@ if __name__ == '__main__':
     save_json_dict(results, 'results/ablation_study_depth.json')
 
     # Ablation study with width
-    args = {'dataset' : 'mnist', 'L' : 3} # Keep depth at 3 layers
-    results = ablation_study_varying_widths(args, min_width=MIN_WIDTH, max_width=MAX_WIDTH)
-    save_json_dict(results, 'results/ablation_study_width.json')
+    # args = {'dataset' : 'mnist', 'L' : 3} # Keep depth at 3 layers
+    # results = ablation_study_varying_widths(args, min_width=MIN_WIDTH, max_width=MAX_WIDTH)
+    # save_json_dict(results, 'results/ablation_study_width.json')
