@@ -31,14 +31,15 @@ TRAIN_LOSS_THRESHOLD = 0.1 # 0.05 # 1e-2
 
 # Constants for ablation study
 MIN_WIDTH = 1
-MIN_DEPTH = 9
+MIN_DEPTH = 2
 MAX_WIDTH = MIN_WIDTH + 7
-MAX_DEPTH = MIN_DEPTH + 1 # 8
+MAX_DEPTH = MIN_DEPTH + 8
 DATASET_TO_INDIM = {
   'mnist': 28 * 28,          # 784 for flattened, or use (1, 28, 28) for CNNs
   'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
   'cifar10': 32 * 32 * 3     # 3072 for flattened, or use (3, 32, 32) for CNNs
 }
+REG_CONSTS  = {2: 0.1, 3: 0.01, 4: 0.01, 5: 0.01, 6: 0.005, 7: 0.002, 8: 0.0005, 9: 5e-05, 10: 1e-05}
 RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 'ours': 'Ours', 'ours_opt': 'Ours (line search)'}
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours': 'tab:blue', 'ours_opt': 'tab:cyan'}
 SAVE_DIR    = 'checkpoints'
@@ -124,7 +125,7 @@ def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_si
                 # Forward pass + CE calculation
                 outputs  = model(images)
                 ce_loss  = criterion(outputs, labels)
-                reg_loss = l1_regularization(model, reg_lambda/L)
+                reg_loss = l1_regularization(model, reg_lambda)
                 loss = ce_loss + reg_loss 
 
                 # Back propagation
@@ -204,6 +205,7 @@ def ablation_study_varying_depths(args, min_depth, max_depth):
     depths = list(range(min_depth, max_depth + 1))
     results_depth = {x: [] for x in list(RESULT_KEYS.keys())} 
     train_losses, test_losses = [], []
+    reg_lambdas = {}
 
     # Conduct training
     for i, L in enumerate(depths):
@@ -213,7 +215,8 @@ def ablation_study_varying_depths(args, min_depth, max_depth):
             batch_size=BATCH_SIZE,
             L=L,
             dataset=args['dataset'],
-            hidden_dim=args['hidden_dim']
+            hidden_dim=args['hidden_dim'],
+            reg_lambda=REG_CONSTS[L]
         )
 
         # Save results
@@ -247,7 +250,8 @@ def ablation_study_varying_widths(args, min_width, max_width):
             batch_size=BATCH_SIZE,
             L=args['L'],
             dataset=args['dataset'],
-            hidden_dim=W * 32
+            hidden_dim=W * 32,
+            reg_lambda=REG_CONSTS[args['L']]
         )
 
         # Save results
