@@ -30,15 +30,15 @@ TRAIN_LOSS_THRESHOLD = 0.1 # 0.05 # 1e-2
 
 # Constants for ablation study
 MIN_WIDTH = 1
-MIN_DEPTH = 7 # 2
+MIN_DEPTH = 6 # 2
 MAX_WIDTH = MIN_WIDTH + 7
-MAX_DEPTH = MIN_DEPTH + 3 # 8
+MAX_DEPTH = MIN_DEPTH + 4 # 8
 DATASET_TO_INDIM = {
   'mnist': 28 * 28,          # 784 for flattened, or use (1, 28, 28) for CNNs
   'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
   'cifar10': 32 * 32 * 3     # 3072 for flattened, or use (3, 32, 32) for CNNs
 }
-REG_CONSTS  = {2: 0.01, 3: 0.01, 4: 0.01, 5: 0.01, 6: 0.005, 7: 0.005, 8: 0.005, 9: 0.005, 10: 0.005}
+REG_CONSTS  = {2: 0.01, 3: 0.01, 4: 0.01, 5: 0.01, 6: 0.009, 7: 0.009, 8: 0.009, 9: 0.009, 10: 0.009}
 RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 'ours': 'Ours', 'ours_opt': 'Ours (line search)'}
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours': 'tab:blue', 'ours_opt': 'tab:cyan'}
 SAVE_DIR    = 'checkpoints'
