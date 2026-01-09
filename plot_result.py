@@ -90,6 +90,7 @@ if __name__ == '__main__':
     )
     reorder_legend(axes[0], list(RESULT_KEYS.values()))
 
+    # --- #
     results_visualization_utils(
         axes[1],
         result2['complexities'],
