@@ -24,7 +24,7 @@ plt.style.use('seaborn-v0_8-paper')
 plt.rcParams['text.usetex'] = True
 
 # Constants for training
-MAX_EPOCHS = 100
+MAX_EPOCHS = 200
 BATCH_SIZE = 128
 TRAIN_LOSS_THRESHOLD = 0.1 # 0.05 # 1e-2
 
@@ -38,7 +38,7 @@ DATASET_TO_INDIM = {
   'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
   'cifar10': 32 * 32 * 3     # 3072 for flattened, or use (3, 32, 32) for CNNs
 }
-REG_CONSTS  = {2: 0.01, 3: 0.01, 4: 0.01, 5: 0.01, 6: 0.009, 7: 0.009, 8: 0.009, 9: 0.009, 10: 0.009}
+REG_CONSTS  = {2: 0.01, 3: 0.01, 4: 0.01, 5: 0.01, 6: 0.01, 7: 0.01, 8: 0.01, 9: 0.01, 10: 0.01}
 RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 'ours': 'Ours', 'ours_opt': 'Ours (line search)'}
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours': 'tab:blue', 'ours_opt': 'tab:cyan'}
 SAVE_DIR    = 'checkpoints'
