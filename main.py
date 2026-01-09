@@ -25,7 +25,7 @@ plt.rcParams['text.usetex'] = True
 
 # Constants for training
 MAX_EPOCHS = 100
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 TRAIN_LOSS_THRESHOLD = 0.1 # 0.05 # 1e-2
 
 # Constants for ablation study
@@ -38,7 +38,7 @@ DATASET_TO_INDIM = {
   'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
   'cifar10': 32 * 32 * 3     # 3072 for flattened, or use (3, 32, 32) for CNNs
 }
-REG_CONSTS  = {2: 0.01, 3: 0.01, 4: 0.01, 5: 0.01, 6: 0.005, 7: 0.002, 8: 0.001, 9: 0.001, 10: 0.001}
+REG_CONSTS  = {2: 0.01, 3: 0.01, 4: 0.01, 5: 0.01, 6: 0.005, 7: 0.002, 8: 0.002, 9: 0.002, 10: 0.002}
 RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 'ours': 'Ours', 'ours_opt': 'Ours (line search)'}
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours': 'tab:blue', 'ours_opt': 'tab:cyan'}
 SAVE_DIR    = 'checkpoints'
