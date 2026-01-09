@@ -8,6 +8,16 @@ from common import get_default_device
 from norms import frobenius_norm, l0_norm, lp_norm, l21_norm, spectral_norm 
 
 # Network definition
+class ReLUDropout(nn.Module):
+    def __init__(self, rate=0.2):
+        super().__init__()
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(rate)
+    def forward(self, x):
+        x = self.relu(x)
+        x = self.dropout(x)
+        return x
+
 class Net(nn.Module):
     def __init__(self, in_dim=784, out_dim=64, hidden_dim=128, L=10, device=None):
         super().__init__()
@@ -41,11 +51,9 @@ class Net(nn.Module):
         for _ in range(1, self.L):
             self.fc_hidden_layers.append( nn.Linear(hidden_dim, hidden_dim, bias=False) )
             self.fc_hidden_layers.append( nn.ReLU() )
-            self.fc_hidden_layers.append( nn.Dropout(0.2) )
         self.v = nn.Sequential(
             nn.Linear(in_dim, hidden_dim, bias=False),
-            nn.ReLU(), 
-            nn.Dropout(0.2),
+            nn.ReLU(),
             *self.fc_hidden_layers
         )
         self.U = nn.Linear(hidden_dim, out_dim)

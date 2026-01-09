@@ -30,15 +30,15 @@ TRAIN_LOSS_THRESHOLD = 0.1 # 0.05 # 1e-2
 
 # Constants for ablation study
 MIN_WIDTH = 1
-MIN_DEPTH = 2
+MIN_DEPTH = 8 # 2
 MAX_WIDTH = MIN_WIDTH + 7
-MAX_DEPTH = MIN_DEPTH + 8
+MAX_DEPTH = MIN_DEPTH + 2 # 8
 DATASET_TO_INDIM = {
   'mnist': 28 * 28,          # 784 for flattened, or use (1, 28, 28) for CNNs
   'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
   'cifar10': 32 * 32 * 3     # 3072 for flattened, or use (3, 32, 32) for CNNs
 }
-REG_CONSTS  = {2: 0.01, 3: 0.01, 4: 0.01, 5: 0.01, 6: 0.005, 7: 0.002, 8: 0.001, 9: 1e-04, 10: 5e-05}
+REG_CONSTS  = {2: 0.01, 3: 0.01, 4: 0.01, 5: 0.01, 6: 0.005, 7: 0.002, 8: 0.001, 9: 0.001, 10: 0.001}
 RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 'ours': 'Ours', 'ours_opt': 'Ours (line search)'}
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours': 'tab:blue', 'ours_opt': 'tab:cyan'}
 SAVE_DIR    = 'checkpoints'
@@ -206,7 +206,7 @@ def ablation_study_varying_depths(args, min_depth, max_depth):
 
     # Conduct training
     for i, L in enumerate(depths):
-        print(f'[INFO] Experiment #[{i+1}/{len(depths)}], L = {L}')
+        print(f'[INFO] Experiment #[{i+1}/{len(depths)}], L = {L}, lambda = {REG_CONSTS[L]}')
         cm, model, train_loss, test_loss, train_acc, test_acc = train(
             epochs=MAX_EPOCHS, 
             batch_size=BATCH_SIZE,
@@ -241,7 +241,7 @@ def ablation_study_varying_widths(args, min_width, max_width):
 
     # Conduct training
     for i, W in enumerate(widths):
-        print(f'[INFO] Experiment #[{i+1}/{len(widths)}], W = {W*32}')
+        print(f'[INFO] Experiment #[{i+1}/{len(widths)}], W = {W*32}, lambda = {REG_CONSTS[args["L"]]}')
         cm, model, train_loss, test_loss, train_acc, test_acc = train(
             epochs=MAX_EPOCHS, 
             batch_size=BATCH_SIZE,
