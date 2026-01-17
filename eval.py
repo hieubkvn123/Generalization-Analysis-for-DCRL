@@ -44,6 +44,24 @@ RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 'ours_
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours_p0': 'tab:cyan', 'ours_p1': 'tab:blue', 'ours_p5': 'tab:green'}
 SAVE_DIR    = 'checkpoints'
 
+def compute_margin(logits, labels):
+    # Get the logit for the true class
+    true_class_logits = logits[torch.arange(len(labels)), labels]
+
+    # Create a mask to exclude the true class
+    mask = torch.ones_like(logits, dtype=bool)
+    mask[torch.arange(len(labels)), labels] = False
+
+    # Get max logit among all other classes
+    other_class_logits = logits.clone()
+    other_class_logits[~mask] = float('-inf')
+    max_other_logits = other_class_logits.max(dim=1).values
+
+    # Compute margin
+    margins = true_class_logits - max_other_logits
+
+    return margins
+
 def evaluate(model_file, dataset='mnist'):
     # Get dataset 
     train_dataloader, test_dataloader = get_dataloader(name=dataset, batch_size=BATCH_SIZE)
