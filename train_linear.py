@@ -46,7 +46,7 @@ m = num_classes  # 10 classes
 
 # --- sparsity inducing regularization ---
 p_reg = 1  # example p value
-lambda_reg = 0.001  # Reduced for MNIST
+lambda_reg = 0.002  # Reduced for MNIST
 
 def lp_regularizer(A, p):
     # A is weight matrix
