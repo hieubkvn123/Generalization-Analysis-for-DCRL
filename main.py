@@ -26,22 +26,29 @@ plt.rcParams['text.usetex'] = True
 # Constants for training
 MAX_EPOCHS = 200
 BATCH_SIZE = 128
-TRAIN_LOSS_THRESHOLD = 0.1 # 0.05 # 1e-2
+LEARNING_RATE = 0.0005
+TRAIN_LOSS_THRESHOLD = 0.1 
+SPECTRAL_NORMALIZATION = True
 
 # Constants for ablation study
 MIN_WIDTH = 1
-MIN_DEPTH = 6 # 2
+MIN_DEPTH = 2
 MAX_WIDTH = MIN_WIDTH + 7
-MAX_DEPTH = MIN_DEPTH + 4 # 8
+MAX_DEPTH = MIN_DEPTH + 8
 DATASET_TO_INDIM = {
   'mnist': 28 * 28,          # 784 for flattened, or use (1, 28, 28) for CNNs
   'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
   'cifar10': 32 * 32 * 3     # 3072 for flattened, or use (3, 32, 32) for CNNs
 }
-REG_CONSTS  = {2: 0.01, 3: 0.01, 4: 0.01, 5: 0.01, 6: 0.02, 7: 0.02, 8: 0.02, 9: 0.02, 10: 0.02}
+REG_CONSTS  = {2: 0.02, 3: 0.02, 4: 0.02, 5: 0.02, 
+               6: 0.02, 7: 0.02, 8: 0.02, 9: 0.02, 
+               10: 0.02}
 RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 'ours': 'Ours', 'ours_opt': 'Ours (line search)'}
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours': 'tab:blue', 'ours_opt': 'tab:cyan'}
 SAVE_DIR    = 'checkpoints'
+
+if SPECTRAL_NORMALIZATION:
+    REG_CONSTS = {x: 0.0 for x in range(2,11)}
 
 # Create save directory if not available
 pathlib.Path(SAVE_DIR).mkdir(parents=True, exist_ok=True)
@@ -83,20 +90,20 @@ def spectral_regularization(model, lambda_spectral):
         spectral_loss += compute_spectral_norm(weight)
     return lambda_spectral * spectral_loss
 
-def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64, reg_lambda=0.001):
+def train(epochs, dataset='mnist', L=2, hidden_dim=128, num_classes=10, batch_size=64, reg_lambda=0.001, spec_norm=False):
     # Get dataset 
     train_dataloader, test_dataloader = get_dataloader(name=dataset, batch_size=batch_size)
     num_train_batches = len(train_dataloader)
     num_test_batches = len(test_dataloader)
     
     # Load model - output dimension should match number of classes
-    model = get_model(in_dim=DATASET_TO_INDIM[dataset], out_dim=num_classes, hidden_dim=hidden_dim, L=L)
+    model = get_model(in_dim=DATASET_TO_INDIM[dataset], out_dim=num_classes, hidden_dim=hidden_dim, spec_norm=spec_norm, L=L)
     model = model.to(model.device)
 
     # Optimization algorithm
     optimizer = torch.optim.Adam(
         model.parameters(), 
-        lr=0.0009,
+        lr=LEARNING_RATE,
     )
     
     # Loss function for classification
@@ -213,7 +220,8 @@ def ablation_study_varying_depths(args, min_depth, max_depth):
             L=L,
             dataset=args['dataset'],
             hidden_dim=args['hidden_dim'],
-            reg_lambda=REG_CONSTS[L]
+            reg_lambda=REG_CONSTS[L],
+            spec_norm=SPECTRAL_NORMALIZATION
         )
 
         # Save results
@@ -248,7 +256,8 @@ def ablation_study_varying_widths(args, min_width, max_width):
             L=args['L'],
             dataset=args['dataset'],
             hidden_dim=W * 32,
-            reg_lambda=REG_CONSTS[args['L']]
+            reg_lambda=REG_CONSTS[args['L']],
+            spec_norm=SPECTRAL_NORMALIZATION
         )
 
         # Save results
@@ -270,11 +279,11 @@ def ablation_study_varying_widths(args, min_width, max_width):
 
 if __name__ == '__main__':
     # Ablation study with depth
-    args = {'dataset' : 'mnist', 'hidden_dim' : 256} # Keep hidden dim at 256
-    results = ablation_study_varying_depths(args, min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
-    save_json_dict(results, 'results/ablation_study_depth.json')
+    # args = {'dataset' : 'mnist', 'hidden_dim' : 256} # Keep hidden dim at 256
+    # results = ablation_study_varying_depths(args, min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
+    # save_json_dict(results, 'results/ablation_study_depth.json')
 
     # Ablation study with width
-    # args = {'dataset' : 'mnist', 'L' : 3} # Keep depth at 3 layers
-    # results = ablation_study_varying_widths(args, min_width=MIN_WIDTH, max_width=MAX_WIDTH)
-    # save_json_dict(results, 'results/ablation_study_width.json')
+    args = {'dataset' : 'mnist', 'L' : 3} # Keep depth at 3 layers
+    results = ablation_study_varying_widths(args, min_width=MIN_WIDTH, max_width=MAX_WIDTH)
+    save_json_dict(results, 'results/ablation_study_width.json')

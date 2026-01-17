@@ -19,13 +19,14 @@ class ReLUDropout(nn.Module):
         return x
 
 class Net(nn.Module):
-    def __init__(self, in_dim=784, out_dim=64, hidden_dim=128, L=10, device=None):
+    def __init__(self, in_dim=784, out_dim=64, hidden_dim=128, spec_norm=False, L=10, device=None):
         super().__init__()
         
         # Store configs
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.hidden_dim = hidden_dim
+        self.spec_norm = spec_norm
         self.L = L
 
         # For re-loading model
@@ -48,15 +49,29 @@ class Net(nn.Module):
         
         # Create layers
         self.fc_hidden_layers = []
-        for _ in range(1, self.L):
-            self.fc_hidden_layers.append( nn.Linear(hidden_dim, hidden_dim, bias=False) )
-            self.fc_hidden_layers.append( nn.ReLU() )
-        self.v = nn.Sequential(
-            nn.Linear(in_dim, hidden_dim, bias=False),
-            nn.ReLU(),
-            *self.fc_hidden_layers
-        )
-        self.U = nn.Linear(hidden_dim, out_dim)
+        if not self.spec_norm:
+            for _ in range(1, self.L):
+                self.fc_hidden_layers.append( nn.Linear(hidden_dim, hidden_dim, bias=False) )
+                self.fc_hidden_layers.append( nn.ReLU() )
+            self.v = nn.Sequential(
+                nn.Linear(in_dim, hidden_dim, bias=False),
+                nn.ReLU(),
+                *self.fc_hidden_layers
+            )
+            self.U = nn.Linear(hidden_dim, out_dim)
+        else:
+            print('[INFO] Spectral normalization is applied...')
+            for _ in range(1, self.L):
+                self.fc_hidden_layers.append( 
+                    nn.utils.spectral_norm(nn.Linear(hidden_dim, hidden_dim, bias=False))
+                )
+                self.fc_hidden_layers.append( nn.ReLU() )
+            self.v = nn.Sequential(
+                nn.utils.spectral_norm(nn.Linear(in_dim, hidden_dim, bias=False)),
+                nn.ReLU(),
+                *self.fc_hidden_layers
+            )
+            self.U = nn.utils.spectral_norm(nn.Linear(hidden_dim, out_dim))
 
         # Initialization
         for m in self.modules():
@@ -110,8 +125,8 @@ class Net(nn.Module):
         x = x.view(x.size(0), -1)
         return self.U(self.v(x))
 
-def get_model(in_dim=784, out_dim=64, hidden_dim=128, L=10, device=None):
-    return Net(in_dim=in_dim, out_dim=out_dim, hidden_dim=hidden_dim, L=L, device=device)
+def get_model(in_dim=784, out_dim=64, hidden_dim=128, spec_norm=False, L=10, device=None):
+    return Net(in_dim=in_dim, out_dim=out_dim, hidden_dim=hidden_dim, spec_norm=spec_norm, L=L, device=device)
 
 def prune_matrix(matrix, threshold=1e-3):
     pruned = matrix.copy()
