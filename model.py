@@ -33,6 +33,7 @@ class Net(nn.Module):
         self._init_args = {
             'in_dim': in_dim,
             'out_dim': out_dim,
+            'spec_norm': spec_norm,
             'hidden_dim': hidden_dim,
             'L': L
         }

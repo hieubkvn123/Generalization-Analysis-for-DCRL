@@ -211,8 +211,8 @@ def ablation_study_varying_widths(min_width, max_width):
 
 if __name__ == '__main__':
     # Ablation study with depth
-    results = ablation_study_varying_depths(min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
-    save_json_dict(results, 'results/ablation_study_depth.json')
+    #results = ablation_study_varying_depths(min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
+    #save_json_dict(results, 'results/ablation_study_depth.json')
 
     # Ablation study with width
     results = ablation_study_varying_widths(min_width=MIN_WIDTH, max_width=MAX_WIDTH)
