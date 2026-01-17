@@ -45,12 +45,16 @@ d = X.shape[1]  # 784 for MNIST
 m = num_classes  # 10 classes
 
 # --- sparsity inducing regularization ---
-p_reg = 1  # example p value
+p_reg = 1.0 # example p value
 lambda_reg = 0.002  # Reduced for MNIST
 
 def lp_regularizer(A, p):
-    # A is weight matrix
     return torch.sum(torch.abs(A)**p)
+
+def prune_matrix(matrix, threshold=1e-3):
+    pruned = matrix.copy()
+    pruned[np.abs(pruned) < threshold] = 0
+    return pruned
 
 # --- Compute gamma (margin threshold for target accuracy) ---
 def compute_margin_threshold(model, X, y, target_accuracy=0.85):
@@ -132,17 +136,24 @@ if __name__ == '__main__':
     gamma = compute_margin_threshold(model, X, y, target_accuracy)
 
     # --- compute complexity term for multiple p ---
-    ps = np.arange(0.1, 1.01, 0.05) 
+    # Extract the weight matrix
+    A = model.weight.data.numpy()
+    A = prune_matrix(A)
+    md = np.prod(A.shape)
+
+    # Compute complexity terms
+    ps = [0.001] + np.arange(0.1, 1.01, 0.1).tolist() 
     C_p = []
     with torch.no_grad():
-        A = model.weight.data
-        md = A.numel()
         for p in ps:
-            norm_p = torch.sum(torch.abs(A)**p)**(1/p)
-            # New complexity term: gamma^{-p/(p+2)} * [R * ||A||_p * sqrt(md)]^{p/(p+2)}
+            norm_p = np.sum(np.abs(A)**p)**(1/p)
+            print(p, norm_p)
             exponent = p / (p + 2)
             cp = (gamma ** (-exponent)) * ((R * norm_p * np.sqrt(md)) ** exponent)
             C_p.append(cp.item())
+
+    print(ps)
+    print(C_p)
 
     # --- plot ---
     plt.figure(figsize=(8, 5))
