@@ -55,7 +55,7 @@ optimizer = optim.Adam(model.parameters(), lr=0.01)
 
 # --- sparsity inducing regularization ---
 p_reg = 1  # example p value
-lambda_reg = 0.0001  # Reduced for MNIST
+lambda_reg = 0.001  # Reduced for MNIST
 
 def lp_regularizer(A, p):
     # A is weight matrix
@@ -73,7 +73,7 @@ for epoch in range(300):
     loss.backward()
     optimizer.step()
     
-    if (epoch + 1) % 5 == 0:
+    if (epoch + 1) % 50 == 0:
         with torch.no_grad():
             _, predicted = torch.max(outputs, 1)
             accuracy = (predicted == y).float().mean().item()
@@ -84,19 +84,63 @@ with torch.no_grad():
     R = torch.max(torch.norm(X, p=2, dim=1)).item()
     print(f"\nMaximum input L2 norm (R): {R:.4f}")
 
-# --- Compute gamma (MINIMUM classifier margin) ---
-with torch.no_grad():
-    outputs = model(X)
-    # Get predicted class scores
-    pred_scores = outputs[torch.arange(N), y]  # scores for true class
-    # Get max score among other classes
-    outputs_copy = outputs.clone()
-    outputs_copy[torch.arange(N), y] = -float('inf')
-    max_other_scores = torch.max(outputs_copy, dim=1)[0]
-    # Margin = score(true class) - max(score(other classes))
-    margins = pred_scores - max_other_scores
-    gamma = torch.min(margins).item()
-    print(f"Minimum classifier margin (gamma): {gamma:.4f}")
+# --- Compute gamma (margin threshold for target accuracy) ---
+def compute_margin_threshold(model, X, y, target_accuracy=0.85):
+    """
+    Compute the minimum margin threshold such that samples with margin >= gamma
+    achieve at least target_accuracy.
+    
+    Args:
+        model: trained model
+        X: input data
+        y: true labels
+        target_accuracy: desired accuracy threshold (default 0.85)
+    
+    Returns:
+        gamma: margin threshold
+    """
+    N = len(y)
+    with torch.no_grad():
+        outputs = model(X)
+        # Get predicted class scores
+        pred_scores = outputs[torch.arange(N), y]  # scores for true class
+        # Get max score among other classes
+        outputs_copy = outputs.clone()
+        outputs_copy[torch.arange(N), y] = -float('inf')
+        max_other_scores = torch.max(outputs_copy, dim=1)[0]
+        # Margin = score(true class) - max(score(other classes))
+        margins = pred_scores - max_other_scores
+        
+        # Check if predictions are correct
+        _, predicted = torch.max(outputs, 1)
+        correct = (predicted == y)
+        
+        # Get margins only for correctly classified samples
+        correct_margins = margins[correct]
+        
+        # Sort margins in ascending order
+        sorted_margins = torch.sort(correct_margins)[0]
+        
+        # Find the margin threshold that gives us target_accuracy
+        num_correct = correct.sum().item()
+        num_needed = int(np.ceil(target_accuracy * N))
+        
+        if num_correct >= num_needed:
+            # Index of the margin threshold (sorted in ascending order)
+            threshold_idx = max(0, num_correct - num_needed)
+            gamma = sorted_margins[threshold_idx].item()
+            print(f"Margin threshold (gamma) for {target_accuracy*100}% accuracy: {gamma:.4f}")
+            print(f"Number of samples with margin >= gamma: {(margins >= gamma).sum().item()}/{N}")
+        else:
+            # Not enough correct predictions to meet target accuracy
+            gamma = torch.min(correct_margins).item()
+            print(f"Warning: Only {num_correct}/{N} correct predictions, cannot achieve {target_accuracy*100}% accuracy")
+            print(f"Using minimum margin among correct predictions: {gamma:.4f}")
+    
+    return gamma
+
+target_accuracy = 0.95
+gamma = compute_margin_threshold(model, X, y, target_accuracy)
 
 # --- compute complexity term for multiple p ---
 ps = [0.001, 0.1, 0.25, 0.5, 0.75, 1.0]
