@@ -216,6 +216,51 @@ def compute_complexity_bartlett(network: Net, n=1000, gamma=1.0, device=None):
     complexity = complexity / gamma
     return complexity
 
+# Compute Neyshabur et al. complexity
+def compute_complexity_neyshabur(network: Net, n=1000, gamma=1.0, device=None):
+    # Report
+    print('[INFO] Computing Neyshabur et al. complexity measure...')
+    network.eval()
+
+    # Get device
+    if device is None:
+        device = get_default_device()
+        network = network.to(device)
+        network.device = device
+
+    # Get necessary constants
+    L = network.L 
+    d, d_max = network.out_dim, network.out_dim
+
+    # Initialization
+    R_A = 0.0
+    
+    # Compute complexity
+    prod_term, sum_term = 1.0, 0.0
+    for l in range(1, L+1):
+        A_l = network._get_v_layer_weights(layer=l)
+        d_out, d_in = A_l.shape
+        if max(d_out, d_in) > d_max: 
+            d_max = max(d_out, d_in)
+
+        # Compute all necessary norms
+        s_l = spectral_norm(A_l)
+        f_l = frobenius_norm(A_l)
+
+        # Compute the sum and product terms
+        prod_term *= s_l
+        sum_term  += ((f_l ** 2) / (s_l ** 2)) 
+
+    # Compute spectral complexity
+    R_A = prod_term * np.sqrt(sum_term)
+    R_A = R_A * L * np.sqrt(d_max)
+
+    # Scale by 1/sqrt(n)
+    complexity = R_A / np.sqrt(n)
+    complexity = complexity / gamma
+    return complexity
+
+
 # Compute Ledent et al. complexity
 def compute_complexity_ledent(network: Net, n=1000, p=0.5, gamma=1.0, device=None):
     # Report
@@ -322,7 +367,7 @@ def compute_complexity_paracount(network: Net, n=1000, device=None):
 # Compute non-zero Para. count complexity 
 def compute_complexity_paracount_nonzero(network: Net, n=1000, device=None):
     # Report
-    print('[INFO] Computing Graf et al. (para-count) complexity measure...')
+    print('[INFO] Computing our (non-zero para-count) complexity measure...')
     network.eval()
 
     # Get device
