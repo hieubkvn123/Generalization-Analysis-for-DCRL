@@ -43,14 +43,14 @@ DATASET_TO_INDIM = {
   'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
   'cifar10': 32 * 32 * 3     # 3072 for flattened, or use (3, 32, 32) for CNNs
 }
-RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 
-               'neyshabur': 'Neyshabur et al.',
+RESULT_KEYS = {'ours_p0': 'Ours ($p=0.0$)', 'ours_p5': 'Ours ($p=0.5$)',
                'ledent_p0': 'Ledent et al. ($p=0.0$)', 'ledent_p5': 'Ledent et al. ($p=0.5$)',
-               'ours_p0': 'Ours ($p=0.0$)', 'ours_p5': 'Ours ($p=0.5$)'}
-COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 
-               'neyshabur': 'tab:purple',
+               'paracount': 'Graf et al.', 'bartlett': 'Bartlett et al.',
+               'neyshabur': 'Neyshabur et al.'}
+COLOR_KEYS  = {'ours_p0': 'tab:blue', 'ours_p5': 'tab:green',
                'ledent_p0': 'tab:pink', 'ledent_p5': 'tab:brown',
-               'ours_p0': 'tab:blue', 'ours_p5': 'tab:green'}
+               'paracount': 'tab:red', 'bartlett': 'tab:orange', 
+               'neyshabur': 'tab:purple'}
 SAVE_DIR    = 'checkpoints_nsr'
 
 def compute_margin_threshold(all_margins, all_correct, total, target_accuracy=0.85):

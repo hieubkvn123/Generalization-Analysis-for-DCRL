@@ -7,9 +7,10 @@ from eval import RESULT_KEYS, COLOR_KEYS
 
 # Enable LaTeX rendering
 plt.rc('text', usetex=True)
+plt.style.use('seaborn-v0_8-paper')
 
 # Visualization configs
-LEGEND_FONTSIZE = 18
+LEGEND_FONTSIZE = 17
 XYLABEL_FONTSIZE = 25
 XYTICK_FONTSIZE = 15
 fontconfig = {
@@ -37,8 +38,7 @@ def reorder_legend(ax=None,order=None,unique=False):
         keys=dict(zip(order,range(len(order))))
         labels, handles = zip(*sorted(zip(labels, handles), key=lambda t,keys=keys: keys.get(t[0],np.inf)))
     if unique:  labels, handles= zip(*unique_everseen(zip(labels,handles), key = labels)) # Keep only the first of each handle
-    ax.legend(handles, labels, loc='upper left', fontsize=LEGEND_FONTSIZE)
-    return(handles, labels)
+    return (handles, labels)
 
 def results_visualization_utils(ax, results, xaxis_data, xlabel, ylabel):
     # Initialize plot
@@ -68,7 +68,7 @@ if __name__ == '__main__':
     result2 = load_json_to_dict(result_fname2)
 
     # Plot results
-    fig, axes = plt.subplots(1, 2, figsize=(20, 7))
+    fig, axes = plt.subplots(1, 2, figsize=(20, 8))
     results_visualization_utils(
         axes[0],
         result1['complexities'],
@@ -76,7 +76,7 @@ if __name__ == '__main__':
         xlabel='Depths ($L$)',
         ylabel='Generalization bounds (log-scaled)',
     )
-    reorder_legend(axes[0], list(RESULT_KEYS.values()))
+    handles, labels = reorder_legend(axes[0], list(RESULT_KEYS.values()))
 
     # --- #
     results_visualization_utils(
@@ -86,8 +86,12 @@ if __name__ == '__main__':
         xlabel='Widths ($W$ - in multiples of $32$)',
         ylabel='Generalization bounds (log-scaled)',
     )
-    reorder_legend(axes[1], list(RESULT_KEYS.values()))
+    handles, labels = reorder_legend(axes[1], list(RESULT_KEYS.values()))
 
-    # Plot
-    plt.tight_layout()
+    # Create a single legend for the whole figure
+    ncol = np.ceil(len(labels) / 2)
+    fig.legend(handles, labels, loc="upper center", ncol=ncol, fontsize=LEGEND_FONTSIZE)
+
+    # Make room on the right for the legend
+    fig.tight_layout(rect=[0, 0, 1, 0.9])
     plt.savefig(SAVE_PATH, dpi=300, format='pdf')
