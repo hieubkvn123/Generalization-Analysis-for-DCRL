@@ -192,7 +192,6 @@ def compute_complexity_bartlett(network: Net, n=1000, gamma=1.0, device=None):
     prod_term, sum_term = 1.0, 0.0
     for l in range(1, L+1):
         A_l = network._get_v_layer_weights(layer=l)
-        A_l = prune_matrix(A_l)
 
         # Compute all necessary norms
         s_l = spectral_norm(A_l)

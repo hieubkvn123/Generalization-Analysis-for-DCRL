@@ -175,7 +175,7 @@ def evaluate(model_file, dataset='mnist'):
     cm_paracount = np.log(compute_complexity_paracount(model, n=len(train_dataloader.dataset)))
     cm_ours_p0   = np.log(compute_complexity_paracount_nonzero(model, n=len(train_dataloader.dataset)))
     cm_ours_p1   = np.log(compute_complexity_ours(model, p=0.1, gamma=gamma, n=len(train_dataloader.dataset)))
-    cm_ours_p5   = np.log(compute_complexity_ours(model, p=0.5, gamma=gamma, n=len(train_dataloader.dataset)))
+    cm_ours_p5   = np.log(compute_complexity_ours(model, p=0.6, gamma=gamma, n=len(train_dataloader.dataset)))
     cm_bartlett  = np.log(compute_complexity_bartlett(model, gamma=gamma, n=len(train_dataloader.dataset)))
     return {
         'ours_p0': cm_ours_p0,
