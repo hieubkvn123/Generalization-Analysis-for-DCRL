@@ -46,11 +46,12 @@ def results_visualization_utils(ax, results, xaxis_data, xlabel, ylabel):
 
     # Visualize
     for key, result in results.items():
-        linestyle = None
+        linestyle, alpha = None, 1.0
         if key not in RESULT_KEYS.keys(): continue
         if not key.startswith('ours'):
-            linestyle = '-.'
-        ax.plot(xaxis_data, result, label=RESULT_KEYS[key], color=COLOR_KEYS[key], marker='o', linestyle=linestyle)
+            linestyle, alpha = '-.', 0.7
+        ax.plot(xaxis_data, result, label=RESULT_KEYS[key], color=COLOR_KEYS[key], 
+                marker='o', linestyle=linestyle, alpha=alpha)
     ax.set_xlabel(xlabel, fontdict=fontconfig)
     ax.set_ylabel(ylabel, fontdict=fontconfig)
 
