@@ -42,7 +42,7 @@ DATASET_TO_INDIM = {
 }
 RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 'ours_p0': 'Ours ($p=0.0$)', 'ours_p1': 'Ours ($p=0.1$)', 'ours_p5': 'Ours ($p=0.5$)'}
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours_p0': 'tab:cyan', 'ours_p1': 'tab:blue', 'ours_p5': 'tab:green'}
-SAVE_DIR    = 'checkpoints'
+SAVE_DIR    = 'checkpoints_nsr'
 
 def compute_margin_threshold(all_margins, all_correct, total, target_accuracy=0.85):
     # Concatenate all batches
@@ -241,8 +241,8 @@ def ablation_study_varying_widths(min_width, max_width):
 
 if __name__ == '__main__':
     # Ablation study with depth
-    #results = ablation_study_varying_depths(min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
-    #save_json_dict(results, 'results/ablation_study_depth.json')
+    results = ablation_study_varying_depths(min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
+    save_json_dict(results, 'results/ablation_study_depth.json')
 
     # Ablation study with width
     results = ablation_study_varying_widths(min_width=MIN_WIDTH, max_width=MAX_WIDTH)
