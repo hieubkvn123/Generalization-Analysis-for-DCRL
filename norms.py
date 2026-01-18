@@ -20,3 +20,14 @@ def lp_norm(A, p=0.5):
 
 def l0_norm(A):
     return np.count_nonzero(A)
+
+import numpy as np
+
+def schatten_p_norm(A, p=0.5):
+    s = np.linalg.svd(A, compute_uv=False)
+    if p == np.inf:
+        return np.max(s)
+    if p <= 0:
+        raise ValueError("p must be positive or np.inf")
+    return np.sum(s**p) ** (1.0 / p)
+

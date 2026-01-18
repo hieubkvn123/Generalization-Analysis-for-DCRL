@@ -3,6 +3,7 @@ import json
 import pathlib
 import numpy as np
 import matplotlib.pyplot as plt
+from eval import RESULT_KEYS, COLOR_KEYS
 
 # Enable LaTeX rendering
 plt.rc('text', usetex=True)
@@ -18,23 +19,6 @@ fontconfig = {
 
 # Constants
 SAVE_PATH = 'results/ablation_studies.pdf'
-RESULT_KEYS = {
-    'bartlett'  : 'Bartlett et al.', 
-    'paracount' : 'Graf et al.', 
-    'ours_p0'   : 'Ours ($p=0.0$)', 
-    'ours_p1'   : 'Ours ($p=0.1$)', 
-    'ours_p5'   : 'Ours ($p=0.5$)', 
-    # 'ours_opt'  : 'Ours (line-search)'
-}
-COLOR_KEYS  = {
-    'bartlett'  : 'tab:orange', 
-    'paracount' : 'tab:red', 
-    'ours_p0'   : 'tab:cyan', 
-    'ours_p1'   : 'tab:blue', 
-    'ours_p5'   : 'tab:green', 
-    # 'ours_opt'  : 'tab:purple'
-} 
-
 def load_json_to_dict(file_path):
     with open(file_path, 'r') as file:
         data = json.load(file)
@@ -62,8 +46,11 @@ def results_visualization_utils(ax, results, xaxis_data, xlabel, ylabel):
 
     # Visualize
     for key, result in results.items():
+        linestyle = None
         if key not in RESULT_KEYS.keys(): continue
-        ax.plot(xaxis_data, result, label=RESULT_KEYS[key], color=COLOR_KEYS[key], marker='o')
+        if not key.startswith('ours'):
+            linestyle = '-.'
+        ax.plot(xaxis_data, result, label=RESULT_KEYS[key], color=COLOR_KEYS[key], marker='o', linestyle=linestyle)
     ax.set_xlabel(xlabel, fontdict=fontconfig)
     ax.set_ylabel(ylabel, fontdict=fontconfig)
 

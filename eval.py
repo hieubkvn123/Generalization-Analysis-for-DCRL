@@ -12,6 +12,8 @@ from model import (
     load_model,
     compute_complexity_ours,
     compute_complexity_bartlett,
+    compute_complexity_ledent,
+    compute_complexity_rank_sparse,
     compute_complexity_paracount,
     compute_complexity_paracount_nonzero
 )
@@ -40,8 +42,12 @@ DATASET_TO_INDIM = {
   'fashionmnist': 28 * 28,   # 784 for flattened, or use (1, 28, 28) for CNNs
   'cifar10': 32 * 32 * 3     # 3072 for flattened, or use (3, 32, 32) for CNNs
 }
-RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 'ours_p0': 'Ours ($p=0.0$)', 'ours_p1': 'Ours ($p=0.1$)', 'ours_p5': 'Ours ($p=0.5$)'}
-COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours_p0': 'tab:cyan', 'ours_p1': 'tab:blue', 'ours_p5': 'tab:green'}
+RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 
+               'ledent_p0': 'Ledent et al. ($p=0.0$)', 'ledent_p5': 'Ledent et al. ($p=0.5$)',
+               'ours_p0': 'Ours ($p=0.0$)', 'ours_p5': 'Ours ($p=0.5$)'}
+COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 
+               'ledent_p0': 'tab:pink', 'ledent_p5': 'tab:brown',
+               'ours_p0': 'tab:blue', 'ours_p5': 'tab:green'}
 SAVE_DIR    = 'checkpoints_nsr'
 
 def compute_margin_threshold(all_margins, all_correct, total, target_accuracy=0.85):
@@ -172,15 +178,18 @@ def evaluate(model_file, dataset='mnist'):
 
     # Evaluate complexity measures
     print('------\nComplexity measures computation:')
-    cm_paracount = np.log(compute_complexity_paracount(model, n=len(train_dataloader.dataset)))
-    cm_ours_p0   = np.log(compute_complexity_paracount_nonzero(model, n=len(train_dataloader.dataset)))
-    cm_ours_p1   = np.log(compute_complexity_ours(model, p=0.1, gamma=gamma, n=len(train_dataloader.dataset)))
-    cm_ours_p5   = np.log(compute_complexity_ours(model, p=0.6, gamma=gamma, n=len(train_dataloader.dataset)))
-    cm_bartlett  = np.log(compute_complexity_bartlett(model, gamma=gamma, n=len(train_dataloader.dataset)))
+    n = len(train_dataloader.dataset)
+    cm_paracount = np.log(compute_complexity_paracount(model, n=n))
+    cm_ours_p0   = np.log(compute_complexity_paracount_nonzero(model, n=n))
+    cm_ours_p5   = np.log(compute_complexity_ours(model, p=0.6, gamma=gamma, n=n))
+    cm_ledent_p0 = np.log(compute_complexity_rank_sparse(model, n=n))
+    cm_ledent_p5 = np.log(compute_complexity_ledent(model, p=0.5, gamma=gamma, n=n))
+    cm_bartlett  = np.log(compute_complexity_bartlett(model, gamma=gamma, n=n))
     return {
         'ours_p0': cm_ours_p0,
-        'ours_p1': cm_ours_p1,
         'ours_p5': cm_ours_p5,
+        'ledent_p0': cm_ledent_p0,
+        'ledent_p5': cm_ledent_p5,
         'bartlett': cm_bartlett,
         'paracount': cm_paracount
     }, model, final_average_train_loss, final_average_test_loss, final_train_accuracy, final_test_accuracy

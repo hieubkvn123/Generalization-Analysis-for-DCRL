@@ -5,7 +5,14 @@ import tqdm
 import itertools
 import numpy as np
 from common import get_default_device
-from norms import frobenius_norm, l0_norm, lp_norm, l21_norm, spectral_norm 
+from norms import (
+    frobenius_norm, 
+    l0_norm, 
+    lp_norm, 
+    l21_norm, 
+    spectral_norm,
+    schatten_p_norm
+)
 
 # Network definition
 DEAFULT_TAU = 1e-5
@@ -209,10 +216,10 @@ def compute_complexity_bartlett(network: Net, n=1000, gamma=1.0, device=None):
     complexity = complexity / gamma
     return complexity
 
-# Compute Para. count complexity 
-def compute_complexity_paracount(network: Net, n=1000, device=None):
+# Compute Ledent et al. complexity
+def compute_complexity_ledent(network: Net, n=1000, p=0.5, gamma=1.0, device=None):
     # Report
-    print('[INFO] Computing Graf et al. (para-count) complexity measure...')
+    print('[INFO] Computing Ledent et al. complexity measure...')
     network.eval()
 
     # Get device
@@ -226,16 +233,61 @@ def compute_complexity_paracount(network: Net, n=1000, device=None):
     d = network.out_dim
 
     # Initialization
-    W = 0.0
+    complexity = 0.0
+    
+    # Compute product term 
+    prod_term, sum_term = 1.0, 0.0
+    for l in range(1, L+1):
+        A_l = network._get_v_layer_weights(layer=l)
+
+        # Compute all necessary norms
+        s_l  = spectral_norm(A_l)
+        prod_term *= s_l
+
+    # Compute complexity
+    for l in range(1, L+1):
+        A_l = network._get_v_layer_weights(layer=l)
+        d_out, d_in = A_l.shape
+
+        # Compute all necessary norms
+        s_l  = spectral_norm(A_l)
+        sc_l = schatten_p_norm(A_l, p=p)
+
+        # --- # 
+        U_l  = prod_term ** ((2 * p) / (p + 2))
+        U_l *= (sc_l / s_l) ** ((2 * p) / (p + 2))
+        U_l *= (d_out + d_in) ** (1 + p / (p + 2))
+        complexity += U_l
+    complexity  = np.sqrt(complexity)
+    complexity *= gamma ** (- (p / (p + 2)))
+    complexity *= np.sqrt(L/n) 
+    return complexity
+
+def compute_complexity_rank_sparse(network: Net, n=1000, device=None):
+    # Report
+    print('[INFO] Computing Ledent et al. (rank-sparse) complexity measure...')
+    network.eval()
+
+    # Get device
+    if device is None:
+        device = get_default_device()
+        network = network.to(device)
+        network.device = device
+
+    # Get necessary constants
+    L = network.L 
+    d = network.out_dim
+
+    # Initialization
+    complexity = 0.0
     
     # Compute complexity
     for l in range(1, L+1):
         A_l = network._get_v_layer_weights(layer=l)
         d_out, d_in = A_l.shape
-        W += d_out * d_in
-
-    # Scale by 1/sqrt(n)
-    complexity = np.sqrt((L * W)/n)
+        complexity += (d_out + d_in) * np.linalg.matrix_rank(A_l)
+    complexity = np.sqrt(complexity)
+    complexity *= np.sqrt(L/n) 
     return complexity
 
 # Compute Para. count complexity 
