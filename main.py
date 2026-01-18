@@ -48,7 +48,7 @@ COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours': 'tab:bl
 SAVE_DIR    = 'checkpoints'
 
 if SPECTRAL_NORMALIZATION:
-    REG_CONSTS = {x: 0.0 for x in range(2,11)}
+    REG_CONSTS = {x: 0.005 for x in range(2,11)}
 
 # Create save directory if not available
 pathlib.Path(SAVE_DIR).mkdir(parents=True, exist_ok=True)
