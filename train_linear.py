@@ -6,6 +6,10 @@ import numpy as np
 from torchvision import datasets, transforms
 from norms import l21_norm, spectral_norm
 
+# Enable LaTeX rendering
+plt.rc('text', usetex=True)
+plt.style.use('seaborn-v0_8-paper')
+
 # --- Load MNIST and create subset ---
 transform = transforms.Compose([
     transforms.ToTensor(),
@@ -19,6 +23,13 @@ mnist_test = datasets.MNIST('./data', train=False, download=True, transform=tran
 # Create subset: 200 samples per class
 samples_per_class = 4000
 num_classes = 10
+
+# --- Configs ---
+p_reg = 1
+lambda_reg = 0.0005
+target_accuracy = 0.92
+epochs = 1000
+
 
 # Prepare training data
 X_list, y_list = [], []
@@ -53,7 +64,6 @@ print(f"Test dataset size: {len(y_test)} samples")
 
 # --- sparsity inducing regularization ---
 def lp_regularizer(A, p):
-    # A is weight matrix
     return torch.sum(torch.abs(A)**p)
 
 # --- Prune sparse matrices ---
@@ -101,14 +111,7 @@ def compute_margin_threshold(model, X, y, target_accuracy=0.85):
             gamma = torch.min(correct_margins).item()
             print(f"Warning: Only {num_correct}/{N} correct predictions, cannot achieve {target_accuracy*100}% accuracy")
             print(f"Using minimum margin among correct predictions: {gamma:.4f}")
-
     return gamma
-
-# --- Configs ---
-p_reg = 1
-lambda_reg = 0.0005
-epochs = 1000
-ps = [0, 0.15, 0.30, 0.45, 0.65, 0.85, 1.0]
 
 if __name__ == '__main__':
     # --- linear model ---
@@ -163,13 +166,10 @@ if __name__ == '__main__':
     with torch.no_grad():
         R = torch.max(torch.norm(X, p=2, dim=1)).item()
         print(f"\nMaximum input L2 norm (R): {R:.4f}")
-    target_accuracy = 0.90
     gamma = compute_margin_threshold(model, X, y, target_accuracy)
 
-    # --- Compute Bartlett et al. complexity ---
-    bartlett = l21_norm(A) / (gamma * np.sqrt(N))
-
     # --- compute complexity term for multiple p ---
+    ps = [0, 0.15, 0.30, 0.45, 0.65, 0.85, 1.0]
     C_p = []
     with torch.no_grad():
         A = model.weight.data.numpy()
@@ -187,6 +187,9 @@ if __name__ == '__main__':
                 cp = cp.item()
             C_p.append(cp)
 
+    # --- Compute Bartlett et al. complexity ---
+    bartlett = l21_norm(A) / (gamma * np.sqrt(N))
+
     # --- plot ---
     plt.figure(figsize=(8, 5))
     plt.plot(ps, C_p, marker='o', linewidth=2, markersize=8, label='Complexity term')
@@ -203,14 +206,16 @@ if __name__ == '__main__':
       )
 
     # Add horizontal line for generalization gap
-    plt.axhline(y=generalization_gap, color='tab:red', linestyle='--', linewidth=2,
+    plt.axhline(y=generalization_gap, color='tab:red', linestyle='--', linewidth=1,
                 label=f'Generalization gap ({generalization_gap:.4f})')
-    plt.axhline(y=bartlett, color='tab:orange', linestyle='-.', linewidth=2,
+    plt.axhline(y=bartlett, color='tab:orange', linestyle='-.', linewidth=1,
                 label=f'Bartlett et al. ({bartlett:.4f})')
-    plt.xlabel('p', fontsize=12)
-    plt.ylabel('Complexity term', fontsize=11)
+    plt.xlabel('Quasi-norm Orders ($p$)', fontsize=12)
+    plt.ylabel('Complexity Measure', fontsize=12)
     plt.title('Effect of p on theoretical complexity', fontsize=12)
-    plt.legend(fontsize=10)
-    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=12)
+    plt.grid()
+
+    # Save figure
     plt.tight_layout()
     plt.savefig('results/linear_result.pdf', dpi=300, format='pdf')
