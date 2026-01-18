@@ -11,7 +11,6 @@ from model import (
     get_model,
     load_model,
     compute_complexity_ours,
-    compute_complexity_ours_opt,
     compute_complexity_bartlett,
     compute_complexity_paracount,
     compute_complexity_paracount_nonzero
@@ -28,6 +27,7 @@ plt.rcParams['text.usetex'] = True
 # Constants for training
 MAX_EPOCHS = 1000
 BATCH_SIZE = 64
+TARGET_ACCURACY = 0.9
 TRAIN_LOSS_THRESHOLD = 0.05 # 1e-2
 
 # Constants for ablation study
@@ -44,23 +44,33 @@ RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.', 'ours_
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 'ours_p0': 'tab:cyan', 'ours_p1': 'tab:blue', 'ours_p5': 'tab:green'}
 SAVE_DIR    = 'checkpoints'
 
-def compute_margin(logits, labels):
-    # Get the logit for the true class
-    true_class_logits = logits[torch.arange(len(labels)), labels]
-
-    # Create a mask to exclude the true class
-    mask = torch.ones_like(logits, dtype=bool)
-    mask[torch.arange(len(labels)), labels] = False
-
-    # Get max logit among all other classes
-    other_class_logits = logits.clone()
-    other_class_logits[~mask] = float('-inf')
-    max_other_logits = other_class_logits.max(dim=1).values
-
-    # Compute margin
-    margins = true_class_logits - max_other_logits
-
-    return margins
+def compute_margin_threshold(all_margins, all_correct, total, target_accuracy=0.85):
+    # Concatenate all batches
+    all_margins = torch.cat(all_margins)
+    all_correct = torch.cat(all_correct)
+    
+    # Get margins only for correctly classified samples
+    correct_margins = all_margins[all_correct]
+    
+    # Sort margins in ascending order
+    sorted_margins = torch.sort(correct_margins)[0]
+    
+    # Find the margin threshold that gives us target_accuracy
+    num_correct = all_correct.sum().item()
+    num_needed = int(np.ceil(target_accuracy * total))
+    
+    if num_correct >= num_needed:
+        # Index of the margin threshold (sorted in ascending order)
+        threshold_idx = max(0, num_correct - num_needed)
+        gamma = sorted_margins[threshold_idx].item()
+        print(f"Margin threshold (gamma) for {target_accuracy*100}% accuracy: {gamma:.4f}")
+        print(f"Number of samples with margin >= gamma: {(all_margins >= gamma).sum().item()}/{total}")
+    else:
+        # Not enough correct predictions to meet target accuracy
+        gamma = torch.min(correct_margins).item()
+        print(f"Warning: Only {num_correct}/{total} correct predictions, cannot achieve {target_accuracy*100}% accuracy")
+        print(f"Using minimum margin among correct predictions: {gamma:.4f}")
+    return gamma
 
 def evaluate(model_file, dataset='mnist'):
     # Get dataset 
@@ -76,9 +86,12 @@ def evaluate(model_file, dataset='mnist'):
     final_average_train_loss, final_average_test_loss = 0, 0
     final_train_accuracy, final_test_accuracy = 0, 0
 
-    # Train model
-    model.eval()
+    # Lists to accumulate margins and correctness for gamma computation
+    all_margins, all_correct = [], []
+
+    # Evaluate model 
     print('------\nLoss computation on training data:')
+    model.eval()
     with torch.no_grad():
         with tqdm.tqdm(total=len(train_dataloader)) as pbar:
             total_loss, correct, total = 0.0, 0, 0
@@ -91,11 +104,26 @@ def evaluate(model_file, dataset='mnist'):
                 outputs = model(images)
                 loss = criterion(outputs, labels)
 
+                # Compute margins for gamma calculation
+                batch_size = labels.size(0)
+                pred_scores = outputs[torch.arange(batch_size), labels]  # scores for true class
+                outputs_copy = outputs.clone()
+                outputs_copy[torch.arange(batch_size), labels] = -float('inf')
+                max_other_scores = torch.max(outputs_copy, dim=1)[0]
+                margins = pred_scores - max_other_scores  # margin for each sample
+                
+                # Check predictions
+                _, predicted = torch.max(outputs.data, 1)
+                correct_batch = (predicted == labels)
+                
+                # Store margins and correctness
+                all_margins.append(margins.cpu())
+                all_correct.append(correct_batch.cpu())
+
                 # Update loss and accuracy for this epoch
                 total_loss += loss.item()
-                _, predicted = torch.max(outputs.data, 1)
                 total += labels.size(0)
-                correct += (predicted == labels).sum().item()
+                correct += correct_batch.sum().item()
                 
                 # Update progress bar
                 pbar.set_postfix({
@@ -107,6 +135,8 @@ def evaluate(model_file, dataset='mnist'):
             final_average_train_loss = total_loss / (num_train_batches * BATCH_SIZE)
             final_train_accuracy = 100 * correct / total
             print(f'\nAverage train loss: {final_average_train_loss:.4f}, Accuracy: {final_train_accuracy:.2f}%\n------\n')
+    gamma = compute_margin_threshold(all_margins, all_correct, total, target_accuracy=TARGET_ACCURACY)
+    print(f'Gamma = {gamma}')
 
     # Evaluate the model
     model.eval()
@@ -142,11 +172,11 @@ def evaluate(model_file, dataset='mnist'):
 
     # Evaluate complexity measures
     print('------\nComplexity measures computation:')
-    cm_ours_p0   = np.log(compute_complexity_paracount_nonzero(model, n=len(train_dataloader.dataset)))
-    cm_ours_p1   = np.log(compute_complexity_ours(model, p=0.1, n=len(train_dataloader.dataset)))
-    cm_ours_p5   = np.log(compute_complexity_ours(model, p=0.5, n=len(train_dataloader.dataset)))
-    cm_bartlett  = np.log(compute_complexity_bartlett(model, n=len(train_dataloader.dataset)))
     cm_paracount = np.log(compute_complexity_paracount(model, n=len(train_dataloader.dataset)))
+    cm_ours_p0   = np.log(compute_complexity_paracount_nonzero(model, n=len(train_dataloader.dataset)))
+    cm_ours_p1   = np.log(compute_complexity_ours(model, p=0.1, gamma=gamma, n=len(train_dataloader.dataset)))
+    cm_ours_p5   = np.log(compute_complexity_ours(model, p=0.5, gamma=gamma, n=len(train_dataloader.dataset)))
+    cm_bartlett  = np.log(compute_complexity_bartlett(model, gamma=gamma, n=len(train_dataloader.dataset)))
     return {
         'ours_p0': cm_ours_p0,
         'ours_p1': cm_ours_p1,

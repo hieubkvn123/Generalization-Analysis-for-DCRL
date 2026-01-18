@@ -8,6 +8,7 @@ from common import get_default_device
 from norms import frobenius_norm, l0_norm, lp_norm, l21_norm, spectral_norm 
 
 # Network definition
+DEAFULT_TAU = 1e-5
 class ReLUDropout(nn.Module):
     def __init__(self, rate=0.2):
         super().__init__()
@@ -129,7 +130,7 @@ class Net(nn.Module):
 def get_model(in_dim=784, out_dim=64, hidden_dim=128, spec_norm=False, L=10, device=None):
     return Net(in_dim=in_dim, out_dim=out_dim, hidden_dim=hidden_dim, spec_norm=spec_norm, L=L, device=device)
 
-def prune_matrix(matrix, threshold=1e-3):
+def prune_matrix(matrix, threshold=DEAFULT_TAU):
     pruned = matrix.copy()
     pruned[np.abs(pruned) < threshold] = 0
     return pruned
@@ -169,7 +170,7 @@ def load_model(filename):
 
 ### Complexity Computation ###
 # Compute Bartlett et al. complexity
-def compute_complexity_bartlett(network: Net, n=1000, device=None):
+def compute_complexity_bartlett(network: Net, n=1000, gamma=1.0, device=None):
     # Report
     print('[INFO] Computing Bartlett et al. complexity measure...')
     network.eval()
@@ -206,6 +207,7 @@ def compute_complexity_bartlett(network: Net, n=1000, device=None):
 
     # Scale by 1/sqrt(n)
     complexity = R_A / np.sqrt(n)
+    complexity = complexity / gamma
     return complexity
 
 # Compute Para. count complexity 
@@ -296,7 +298,7 @@ def compute_complexity_paracount_nonzero(network: Net, n=1000, device=None):
     return complexity
 
 # Compute our complexity 
-def compute_complexity_ours(network: Net, n=1000, p=0.1, device=None, verbose=True):
+def compute_complexity_ours(network: Net, n=1000, p=0.1, gamma=1.0, device=None, verbose=True):
     # Report
     if verbose: print('[INFO] Computing our complexity measure...')
     network.eval()
@@ -347,33 +349,9 @@ def compute_complexity_ours(network: Net, n=1000, p=0.1, device=None, verbose=Tr
     rho = np.max(p)
     complexity = R_A ** ((3*rho + 2)/(2*rho + 4))
     complexity = complexity * np.sqrt(L)
+    complexity *= gamma ** (-rho / (rho + 2))
 
     # Scale by 1/sqrt(n)
     complexity = complexity / np.sqrt(n)
     return complexity
 
-# Compute our complexity with layer-wise optimal p
-def compute_complexity_ours_opt(network: Net, n=1000, device=None):
-    print('[INFO] Computing our complexity measure with layer-wise optimal p...')
-    
-    # Get device
-    if device is None:
-        device = get_default_device()
-        network = network.to(device)
-        network.device = device
-
-    # Define p search space
-    L = network.L
-    p_candidates = np.arange(0.05, 1.0, 0.05)
-    
-    # Grid search over all combinations of p values
-    best_complexity = float('inf')
-    best_p_values = None
-    
-    for p_combination in itertools.product(p_candidates, repeat=L):
-        complexity = compute_complexity_ours(network, n=n, p=list(p_combination), device=device, verbose=False)
-        if complexity < best_complexity:
-            best_complexity = complexity
-            best_p_values = p_combination
-    
-    return best_complexity
