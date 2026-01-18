@@ -285,7 +285,7 @@ def compute_complexity_rank_sparse(network: Net, n=1000, device=None):
     for l in range(1, L+1):
         A_l = network._get_v_layer_weights(layer=l)
         d_out, d_in = A_l.shape
-        complexity += (d_out + d_in) * np.linalg.matrix_rank(A_l)
+        complexity += max(d_out, d_in) * np.linalg.matrix_rank(A_l)
     complexity = np.sqrt(complexity)
     complexity *= np.sqrt(L/n) 
     return complexity
