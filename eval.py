@@ -29,7 +29,7 @@ plt.rcParams['text.usetex'] = True
 # Constants for training
 MAX_EPOCHS = 1000
 BATCH_SIZE = 64
-TARGET_ACCURACY = 0.9
+TARGET_ACCURACY = 0.92
 TRAIN_LOSS_THRESHOLD = 0.05 # 1e-2
 
 # Constants for ablation study
@@ -48,7 +48,7 @@ RESULT_KEYS = {'bartlett': 'Bartlett et al.', 'paracount': 'Graf et al.',
 COLOR_KEYS  = {'bartlett': 'tab:orange', 'paracount': 'tab:red', 
                'ledent_p0': 'tab:pink', 'ledent_p5': 'tab:brown',
                'ours_p0': 'tab:blue', 'ours_p5': 'tab:green'}
-SAVE_DIR    = 'checkpoints_sr'
+SAVE_DIR    = 'checkpoints'
 
 def compute_margin_threshold(all_margins, all_correct, total, target_accuracy=0.85):
     # Concatenate all batches

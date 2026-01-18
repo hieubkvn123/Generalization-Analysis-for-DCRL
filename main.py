@@ -31,9 +31,9 @@ TRAIN_LOSS_THRESHOLD = 0.1
 SPECTRAL_NORMALIZATION = True
 
 # Constants for ablation study
-MIN_WIDTH = 1
+MIN_WIDTH = 9
 MIN_DEPTH = 2
-MAX_WIDTH = MIN_WIDTH + 7
+MAX_WIDTH = MIN_WIDTH + 1
 MAX_DEPTH = MIN_DEPTH + 8
 DATASET_TO_INDIM = {
   'mnist': 28 * 28,          # 784 for flattened, or use (1, 28, 28) for CNNs
