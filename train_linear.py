@@ -10,6 +10,15 @@ from norms import l21_norm, spectral_norm
 plt.rc('text', usetex=True)
 plt.style.use('seaborn-v0_8-paper')
 
+# Visualization configs
+LEGEND_FONTSIZE = 20
+XYLABEL_FONTSIZE = 30
+XYTICK_FONTSIZE = 20
+fontconfig = {
+    'family' : 'normal',
+    'size' : XYLABEL_FONTSIZE
+}
+
 # --- Load MNIST and create subset ---
 transform = transforms.Compose([
     transforms.ToTensor(),
@@ -29,7 +38,6 @@ p_reg = 1
 lambda_reg = 0.0005
 target_accuracy = 0.92
 epochs = 1000
-
 
 # Prepare training data
 X_list, y_list = [], []
@@ -190,9 +198,15 @@ if __name__ == '__main__':
     # --- Compute Bartlett et al. complexity ---
     bartlett = l21_norm(A) / (gamma * np.sqrt(N))
 
-    # --- plot ---
-    plt.figure(figsize=(8, 5))
-    plt.plot(ps, C_p, marker='o', linewidth=2, markersize=8, label='Complexity term')
+    # --- # 
+    fig, ax = plt.subplots(figsize=(9, 6))
+    plt.axhline(y=generalization_gap, color='tab:red', linestyle='--', linewidth=2,
+                label=f'Generalization gap ({generalization_gap:.4f})')
+    plt.axhline(y=bartlett, color='tab:orange', linestyle='-.', linewidth=2,
+                label=f'Bartlett et al. ({bartlett:.4f})')
+    plt.plot(ps, C_p, marker='o', linewidth=2, markersize=8, label='Complexity (Ours)')
+    plt.xlabel('Quasi-norm orders ($p$)', fontsize=XYLABEL_FONTSIZE)
+    plt.ylabel('Complexity', fontsize=XYLABEL_FONTSIZE)
 
     # -- annotate ---
     for p, cp in zip(ps, C_p):
@@ -202,20 +216,12 @@ if __name__ == '__main__':
           textcoords="offset points",
           xytext=(0, 6),        # move text slightly above the marker
           ha="center",
-          fontsize=9
+          fontsize=10
       )
 
-    # Add horizontal line for generalization gap
-    plt.axhline(y=generalization_gap, color='tab:red', linestyle='--', linewidth=1,
-                label=f'Generalization gap ({generalization_gap:.4f})')
-    plt.axhline(y=bartlett, color='tab:orange', linestyle='-.', linewidth=1,
-                label=f'Bartlett et al. ({bartlett:.4f})')
-    plt.xlabel('Quasi-norm Orders ($p$)', fontsize=12)
-    plt.ylabel('Complexity Measure', fontsize=12)
-    plt.title('Effect of p on theoretical complexity', fontsize=12)
-    plt.legend(fontsize=12)
+    # -- Logistics ---
+    ax.tick_params(axis='both', which='major', labelsize=XYTICK_FONTSIZE)
+    plt.legend(fontsize=LEGEND_FONTSIZE)
     plt.grid()
-
-    # Save figure
     plt.tight_layout()
-    plt.savefig('results/linear_result.pdf', dpi=300, format='pdf')
+    plt.savefig('results/linear_result.pdf', dpi=300, format='pdf') 
