@@ -10,9 +10,9 @@ plt.rc('text', usetex=True)
 plt.style.use('seaborn-v0_8-paper')
 
 # Visualization configs
-LEGEND_FONTSIZE = 17
-XYLABEL_FONTSIZE = 25
-XYTICK_FONTSIZE = 15
+LEGEND_FONTSIZE = 20
+XYLABEL_FONTSIZE = 30
+XYTICK_FONTSIZE = 20
 fontconfig = {
     'family' : 'normal',
     'size' : XYLABEL_FONTSIZE
@@ -49,9 +49,9 @@ def results_visualization_utils(ax, results, xaxis_data, xlabel, ylabel):
         linestyle, alpha = None, 1.0
         if key not in RESULT_KEYS.keys(): continue
         if not key.startswith('ours'):
-            linestyle, alpha = '-.', 0.7
+            linestyle, alpha = '-.', 1.0
         ax.plot(xaxis_data, result, label=RESULT_KEYS[key], color=COLOR_KEYS[key], 
-                marker='o', linestyle=linestyle, alpha=alpha)
+                marker='o', linestyle=linestyle, alpha=alpha, linewidth=1.2)
     ax.set_xlabel(xlabel, fontdict=fontconfig)
     ax.set_ylabel(ylabel, fontdict=fontconfig)
 
