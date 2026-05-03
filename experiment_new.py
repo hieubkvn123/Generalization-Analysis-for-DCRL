@@ -179,16 +179,25 @@ class CNN(nn.Module):
 # 3.  Training
 # ──────────────────────────────────────────────────────────────
 
-def train_one_epoch(model, loader, optimizer, device, max_sigma=1.0):
+def train_one_epoch(model, loader, optimizer, device, max_sigma=1.0, lambda_reg=1e-3):
     model.train()
     total_loss, correct, total = 0., 0, 0
     for imgs, labels in loader:
         imgs, labels = imgs.to(device), labels.to(device)
         optimizer.zero_grad()
         out = model(imgs)
+
+        # Compute loss
         loss = F.cross_entropy(out, labels)
+
+        # Compute L1-reg
+        l1_norm = sum(param.abs().sum() for param in model.parameters())
+
+        # Total regularized loss
+        loss = loss + lambda_reg * l1_norm
         loss.backward()
         optimizer.step()
+        
         # project spectral norms after each step
         project_spectral_norm_(model, max_sigma)
         total_loss += loss.item() * imgs.size(0)
@@ -273,6 +282,18 @@ def schatten_p_norm(W: torch.Tensor, p: float) -> float:
     if p == 0:
         return schatten_p(W, 0)   # = rank
     return schatten_p(W, p) ** (1.0 / p)
+
+
+def entrywise_lp(W: torch.Tensor, p: float) -> float:
+    """
+    Entry-wise L_p quasi-norm: ||W||_{p}^p = sum_{i,j} |W_{ij}|^p
+    (viewing W as a 2-D matrix).  For p=0 returns the number of non-zero entries.
+    """
+    W2 = W.detach().view(W.shape[0], -1).float()
+    if p == 0:
+        return float((W2.abs() > 1e-10).sum().item())
+    return float((W2.abs() ** p).sum().item())
+
 
 def conv_spectral_norm(weight, input_shape, stride=1, padding=0, n_iters=20):
     """
@@ -691,6 +712,158 @@ def ledent_thm37(stats, layer_params, N, B_max, B_ells, p_ells=None):
     return math.sqrt(L / N) * R
 
 
+def optimize_p_ells_entrywise(stats, layer_params, B_max):
+    """
+    Same as optimize_p_ells but uses the entry-wise L_p quasi-norm instead of
+    the Schatten-p quasi-norm as the rank proxy.
+
+    The bound term per layer is structurally identical to Theorem 3.6 / 3.7 of
+    Ledent 2025, with the sole substitution:
+
+        ||A_ell||_{sc,p}^p / ||op(A)||^p   →   ||A_ell||_{entry,p}^p / ||op(A)||^p
+
+    where  ||A||_{entry,p}^p = sum_{i,j} |A_{ij}|^p.
+
+    Per-layer independent optimisation over p in [0, 1].
+    """
+    L = layer_params['L']
+    spec_norms = layer_params['spec_norms']
+    prod_spec = math.prod(max(s, 1e-15) for s in spec_norms)
+    p_grid = np.linspace(0, 1, 41)
+
+    best_p = []
+    for ell in range(L):
+        s = stats[ell]
+        W = s['W']
+        W2 = W.detach().view(W.shape[0], -1).float()
+        spec = W2.norm(dim=1).max().item()          # row-wise max as proxy; real spec from stats
+        spec = max(stats[ell]['spectral_norm'], 1e-15)
+
+        U = layer_params['U_ell'][ell] if ell < 3 else layer_params['shapes'][ell][0]
+        d = layer_params['d_ell_minus1'][ell] if ell < 3 else layer_params['shapes'][ell][1]
+        W_sp = layer_params['W_ell_spatial'][ell]
+
+        best_val = float('inf')
+        best_p_ell = 0.0
+        for p in p_grid:
+            if p == 0:
+                entry_ratio = float((W2.abs() > 1e-10).sum().item())
+            else:
+                entry_p = float((W2.abs() ** p).sum().item())
+                entry_ratio = entry_p / (spec ** p + 1e-30)
+
+            norm_factor = (B_max * prod_spec) ** (2 * p / (p + 2))
+            rank_factor = entry_ratio ** (2 / (p + 2))
+            dim_factor  = (U + d) ** (2 / (p + 2)) * (W_sp ** (p / (p + 2)))
+            val = norm_factor * rank_factor * dim_factor
+            if val < best_val:
+                best_val = val
+                best_p_ell = p
+        best_p.append(best_p_ell)
+    return best_p
+
+
+def ours_thm36_entrywise(stats, layer_params, N, B_max, p_ells=None):
+    """
+    Ours (without loss augmentation) – entry-wise L_p variant of Theorem 3.6.
+
+    Identical to ledent_thm36 except the Schatten-p quasi-norm ratio
+
+        ||A_ell||_{sc,p}^p / ||op(A)||^p
+
+    is replaced by the entry-wise L_p quasi-norm ratio
+
+        ||A_ell||_{entry,p}^p / ||op(A)||^p  =  (sum_{i,j} |A_{ij}|^p) / ||op(A)||^p
+
+    with M_ell = 0, rho_ell = 1, B = B_max.
+    """
+    L = layer_params['L']
+    spec_norms = layer_params['spec_norms']
+    prod_spec = math.prod(max(s, 1e-15) for s in spec_norms)
+
+    if p_ells is None:
+        p_ells = optimize_p_ells_entrywise(stats, layer_params, B_max)
+
+    R_sum = 0.0
+    for ell in range(L):
+        p = p_ells[ell]
+        s = stats[ell]
+        W = s['W']
+        W2 = W.detach().view(W.shape[0], -1).float()
+        spec = max(s['spectral_norm'], 1e-15)
+
+        # entry-wise L_p ratio: ||A||_{entry,p}^p / ||op(A)||^p
+        if p == 0:
+            entry_ratio_p = float((W2.abs() > 1e-10).sum().item())
+        else:
+            entry_p = float((W2.abs() ** p).sum().item())
+            entry_ratio_p = entry_p / (spec ** p + 1e-30)
+
+        U = layer_params['U_ell'][ell] if ell < 3 else layer_params['shapes'][ell][0]
+        d = layer_params['d_ell_minus1'][ell] if ell < 3 else layer_params['shapes'][ell][1]
+        W_sp = layer_params['W_ell_spatial'][ell]
+
+        norm_factor = (B_max * prod_spec) ** (2 * p / (p + 2))
+        rank_factor = entry_ratio_p ** (2 / (p + 2))
+        dim_factor  = (U + d) ** (2 / (p + 2)) * (W_sp ** (p / (p + 2)))
+
+        R_sum += norm_factor * rank_factor * dim_factor
+
+    R = math.sqrt(R_sum)
+    return math.sqrt(L / N) * R
+
+
+def ours_thm37_entrywise(stats, layer_params, N, B_max, B_ells, p_ells=None):
+    """
+    Ours (with loss augmentation) – entry-wise L_p variant of Theorem 3.7.
+
+    Identical to ledent_thm37 except the Schatten-p quasi-norm ratio is replaced
+    by the entry-wise L_p quasi-norm ratio (see ours_thm36_entrywise).
+    The loss-augmentation substitution
+
+        B * prod_{i} ||A_i||   →   B_{ell-1,A} * prod_{i>=ell} ||A_i||
+
+    is applied in the same way as Theorem 3.7.
+    """
+    L = layer_params['L']
+    spec_norms = layer_params['spec_norms']
+
+    if p_ells is None:
+        p_ells = optimize_p_ells_entrywise(stats, layer_params, B_max)
+
+    R_sum = 0.0
+    for ell in range(L):
+        p = p_ells[ell]
+        s = stats[ell]
+        W = s['W']
+        W2 = W.detach().view(W.shape[0], -1).float()
+        spec = max(s['spectral_norm'], 1e-15)
+
+        if p == 0:
+            entry_ratio_p = float((W2.abs() > 1e-10).sum().item())
+        else:
+            entry_p = float((W2.abs() ** p).sum().item())
+            entry_ratio_p = entry_p / (spec ** p + 1e-30)
+
+        U = layer_params['U_ell'][ell] if ell < 3 else layer_params['shapes'][ell][0]
+        d = layer_params['d_ell_minus1'][ell] if ell < 3 else layer_params['shapes'][ell][1]
+        W_sp = layer_params['W_ell_spatial'][ell]
+
+        # loss-augmented prefactor: B_{ell-1,A} * prod_{i>=ell} ||A_i||
+        B_ell_prev = B_ells[ell]
+        prod_spec_from_ell = math.prod(max(spec_norms[i], 1e-15) for i in range(ell, L))
+        aug_factor = B_ell_prev * prod_spec_from_ell
+
+        norm_factor = aug_factor ** (2 * p / (p + 2))
+        rank_factor = entry_ratio_p ** (2 / (p + 2))
+        dim_factor  = (U + d) ** (2 / (p + 2)) * (W_sp ** (p / (p + 2)))
+
+        R_sum += norm_factor * rank_factor * dim_factor
+
+    R = math.sqrt(R_sum)
+    return math.sqrt(L / N) * R
+
+
 # ──────────────────────────────────────────────────────────────
 # 11. Main experiment loop
 # ──────────────────────────────────────────────────────────────
@@ -739,7 +912,7 @@ def run_experiment(args):
         print(f"  FC width = {fc_width}")
         print(f"{'='*60}")
 
-        ckpt_path = os.path.join(args.save_dir, f'model_w{fc_width}.pt')
+        ckpt_path = os.path.join(args.save_dir, f'model_w{fc_width}_withl1reg.pt')
         model = CNN(fc_width=fc_width, num_classes=10).to(device)
 
         if os.path.exists(ckpt_path) and not args.retrain:
@@ -807,9 +980,13 @@ def run_experiment(args):
         L = layer_params['L']
         print(f"  Total params W={W_total},  W_max_layer={W_max_layer},  L={L}")
 
-        # --- optimized p_ells ---
+        # --- optimized p_ells (Schatten-p, for Ledent 2025) ---
         p_ells_opt = optimize_p_ells(stats, layer_params, B_max)
-        print(f"  Optimal p_ells: {[f'{p:.3f}' for p in p_ells_opt]}")
+        print(f"  Optimal p_ells (Schatten): {[f'{p:.3f}' for p in p_ells_opt]}")
+
+        # --- optimized p_ells (entry-wise Lp, for Ours) ---
+        p_ells_opt_ew = optimize_p_ells_entrywise(stats, layer_params, B_max)
+        print(f"  Optimal p_ells (entry-wise): {[f'{p:.3f}' for p in p_ells_opt_ew]}")
 
         # ---- compute all bounds (dominant term only) ----
         bounds = {}
@@ -831,11 +1008,19 @@ def run_experiment(args):
 
         b_val = ledent_thm36(stats, layer_params, N, B_max, p_ells_opt)
         bounds['Ledent2025_Thm36'] = b_val
-        print(f"  Ledent et al. 2025 (no loss aug):      {b_val:.4e}")
+        print(f"  Ledent et al. 2025 (no loss aug):           {b_val:.4e}")
 
         b_val = ledent_thm37(stats, layer_params, N, B_max, B_ells, p_ells_opt)
         bounds['Ledent2025_Thm37'] = b_val
-        print(f"  Ledent et al. 2025 (with loss aug):    {b_val:.4e}")
+        print(f"  Ledent et al. 2025 (with loss aug):         {b_val:.4e}")
+
+        b_val = ours_thm36_entrywise(stats, layer_params, N, B_max, p_ells_opt_ew)
+        bounds['Ours_Thm36_EntryLp'] = b_val
+        print(f"  Ours (no loss aug,  entry-wise Lp):         {b_val:.4e}")
+
+        b_val = ours_thm37_entrywise(stats, layer_params, N, B_max, B_ells, p_ells_opt_ew)
+        bounds['Ours_Thm37_EntryLp'] = b_val
+        print(f"  Ours (with loss aug, entry-wise Lp):        {b_val:.4e}")
 
         results[fc_width] = {
             'train_acc': train_acc,
@@ -847,6 +1032,7 @@ def run_experiment(args):
             'W_total':   W_total,
             'bounds':    bounds,
             'p_ells_opt': p_ells_opt,
+            'p_ells_opt_entrywise': p_ells_opt_ew,
             'spec_norms': layer_params['spec_norms'],
             'frob_norms': layer_params['frob_norms'],
         }
@@ -879,6 +1065,8 @@ def plot_results(results, save_path='figure_D3.png'):
         ('Pinto2024_C9_C1eq2',    'Pinto et al., 2024\nEq. C9 · C1=2'),
         ('Ledent2025_Thm36',      'Ledent et al., 2025\n(without loss-aug)'),
         ('Ledent2025_Thm37',      'Ledent et al., 2025\n(with loss-aug)'),
+        ('Ours_Thm36_EntryLp',    'Ours\n(without loss-aug)'),
+        ('Ours_Thm37_EntryLp',    'Ours\n(with loss-aug)'),
     ]
 
     n_methods = len(bound_keys)
@@ -889,7 +1077,7 @@ def plot_results(results, save_path='figure_D3.png'):
     bar_w = 0.18
     offsets = np.linspace(-(n_widths - 1) / 2, (n_widths - 1) / 2, n_widths) * bar_w
 
-    fig, ax = plt.subplots(figsize=(14, 5))
+    fig, ax = plt.subplots(figsize=(18, 5))
 
     for wi, (w, color) in enumerate(zip(widths, width_colors)):
         vals = [results[w]['bounds'].get(k, np.nan) for k, _ in bound_keys]
