@@ -179,7 +179,7 @@ class CNN(nn.Module):
 # 3.  Training
 # ──────────────────────────────────────────────────────────────
 
-def train_one_epoch(model, loader, optimizer, device, max_sigma=1.0, lambda_reg=1e-3):
+def train_one_epoch(model, loader, optimizer, device, max_sigma=1.0, lambda_reg=1e-4):
     model.train()
     total_loss, correct, total = 0., 0, 0
     for imgs, labels in loader:
@@ -190,16 +190,11 @@ def train_one_epoch(model, loader, optimizer, device, max_sigma=1.0, lambda_reg=
         # Compute loss
         loss = F.cross_entropy(out, labels)
 
-        # Compute L1-reg
-        l1_norm = sum(param.abs().sum() for param in model.parameters())
-
         # Total regularized loss
-        loss = loss + lambda_reg * l1_norm
+        # loss = loss + lambda_reg * l1_norm
         loss.backward()
         optimizer.step()
         
-        # project spectral norms after each step
-        project_spectral_norm_(model, max_sigma)
         total_loss += loss.item() * imgs.size(0)
         correct += out.argmax(1).eq(labels).sum().item()
         total += imgs.size(0)
@@ -729,7 +724,7 @@ def optimize_p_ells_entrywise(stats, layer_params, B_max):
     L = layer_params['L']
     spec_norms = layer_params['spec_norms']
     prod_spec = math.prod(max(s, 1e-15) for s in spec_norms)
-    p_grid = np.linspace(0, 1, 41)
+    p_grid = np.linspace(0, 1.0, 41)
 
     best_p = []
     for ell in range(L):
@@ -747,14 +742,16 @@ def optimize_p_ells_entrywise(stats, layer_params, B_max):
         best_p_ell = 0.0
         for p in p_grid:
             if p == 0:
-                entry_ratio = float((W2.abs() > 1e-10).sum().item())
+                entry_ratio = float((W2.abs()).sum().item())
             else:
                 entry_p = float((W2.abs() ** p).sum().item())
-                entry_ratio = entry_p / (spec ** p + 1e-30)
+                entry_ratio = entry_p / (spec ** p)
 
-            norm_factor = (B_max * prod_spec) ** (2 * p / (p + 2))
-            rank_factor = entry_ratio ** (2 / (p + 2))
-            dim_factor  = (U + d) ** (2 / (p + 2)) * (W_sp ** (p / (p + 2)))
+            norm_factor = (B_max * prod_spec) ** (2 * p / (3 * p + 2))
+            rank_factor = entry_ratio ** (2 / (3 * p + 2))
+            dim_factor  = (U * np.sqrt(d * W_sp)) ** (2 * p / (3 * p + 2))
+            if ell == L-1:
+                dim_factor  = np.sqrt(d * U) ** (2 * p / (3 * p + 2))
             val = norm_factor * rank_factor * dim_factor
             if val < best_val:
                 best_val = val
@@ -803,13 +800,16 @@ def ours_thm36_entrywise(stats, layer_params, N, B_max, p_ells=None):
         d = layer_params['d_ell_minus1'][ell] if ell < 3 else layer_params['shapes'][ell][1]
         W_sp = layer_params['W_ell_spatial'][ell]
 
-        norm_factor = (B_max * prod_spec) ** (2 * p / (p + 2))
-        rank_factor = entry_ratio_p ** (2 / (p + 2))
-        dim_factor  = (U + d) ** (2 / (p + 2)) * (W_sp ** (p / (p + 2)))
+        norm_factor = (B_max * prod_spec) ** (2 * p / (3 * p + 2))
+        rank_factor = entry_ratio_p ** (2 / (3 * p + 2))
+        dim_factor  = (U * np.sqrt(d * W_sp)) ** (2 * p / (3 * p + 2))
+        if ell == L-1:
+            dim_factor  = np.sqrt(d * U) ** (2 * p / (3 * p + 2))
 
         R_sum += norm_factor * rank_factor * dim_factor
 
-    R = math.sqrt(R_sum)
+    rho = max(p_ells)
+    R = R_sum ** ((3 * rho + 2) / (2 * rho + 4))
     return math.sqrt(L / N) * R
 
 
@@ -854,13 +854,16 @@ def ours_thm37_entrywise(stats, layer_params, N, B_max, B_ells, p_ells=None):
         prod_spec_from_ell = math.prod(max(spec_norms[i], 1e-15) for i in range(ell, L))
         aug_factor = B_ell_prev * prod_spec_from_ell
 
-        norm_factor = aug_factor ** (2 * p / (p + 2))
-        rank_factor = entry_ratio_p ** (2 / (p + 2))
-        dim_factor  = (U + d) ** (2 / (p + 2)) * (W_sp ** (p / (p + 2)))
+        norm_factor = aug_factor ** (2 * p / (3 * p + 2)) 
+        rank_factor = entry_ratio_p ** (2 / (3 * p + 2))
+        dim_factor  = (U * np.sqrt(d * W_sp)) ** (2 * p / (3 * p + 2))
+        if ell == L-1:
+            dim_factor  = np.sqrt(d * U) ** (2 * p / (3 * p + 2))
 
         R_sum += norm_factor * rank_factor * dim_factor
 
-    R = math.sqrt(R_sum)
+    rho = max(p_ells)
+    R = R_sum ** ((3 * rho + 2) / (2 * rho + 4))
     return math.sqrt(L / N) * R
 
 
@@ -923,7 +926,7 @@ def run_experiment(args):
             print(f"  Loaded. Train acc (at save time): {best_acc}")
         else:
             # --- training ---
-            optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=0.0)
+            optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=0.01)
             scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
             for epoch in range(1, args.epochs + 1):

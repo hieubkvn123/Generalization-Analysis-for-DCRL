@@ -178,7 +178,6 @@ class CNN(nn.Module):
 # ──────────────────────────────────────────────────────────────
 # 3.  Training
 # ──────────────────────────────────────────────────────────────
-
 def train_one_epoch(model, loader, optimizer, device, max_sigma=1.0):
     model.train()
     total_loss, correct, total = 0., 0, 0
@@ -196,8 +195,6 @@ def train_one_epoch(model, loader, optimizer, device, max_sigma=1.0):
         total += imgs.size(0)
     return total_loss / total, correct / total
 
-
-@torch.no_grad()
 def evaluate(model, loader, device):
     model.eval()
     correct, total = 0, 0
@@ -632,13 +629,9 @@ def ledent_thm36(stats, layer_params, N, B_max, p_ells=None):
         d = layer_params['d_ell_minus1'][ell] if ell < 3 else layer_params['shapes'][ell][1]
         W_sp = layer_params['W_ell_spatial'][ell]
 
-        # [B * prod_spec]^{2p/(p+2)}
         norm_factor = (B_max * prod_spec) ** (2 * p / (p + 2))
-        # [sch_ratio_p]^{2/(p+2)}
         rank_factor = sch_ratio_p ** (2 / (p + 2))
-        # (U + d)^{2/(p+2)} * W_sp^{p/(p+2)}
         dim_factor = (U + d) ** (2 / (p + 2)) * (W_sp ** (p / (p + 2)))
-
         R_sum += norm_factor * rank_factor * dim_factor
 
     R = math.sqrt(R_sum)
@@ -689,6 +682,137 @@ def ledent_thm37(stats, layer_params, N, B_max, B_ells, p_ells=None):
 
     R = math.sqrt(R_sum)
     return math.sqrt(L / N) * R
+
+def optimize_p_ells_entrywise(stats, layer_params, B_max):
+    """
+    Optimize p_ell in [0,2] per layer to minimize the dominant term in Theorem 3.6.
+    We grid-search over a discrete set of p values and pick the combination
+    that minimizes the sum inside the square root of R^C_{FA}.
+
+    For simplicity we optimize each layer independently (the cross terms factorize
+    given the product of spectral norms is fixed).
+    """
+    L = layer_params['L']
+    spec_norms = layer_params['spec_norms']
+    # product of spectral norms (all ≤ 1 after projection)
+    prod_spec = math.prod(max(s, 1e-15) for s in spec_norms)
+    p_grid = np.linspace(0, 0.5, 41)
+
+    best_p = []
+    for ell in range(L):
+        s = stats[ell]
+        W = s['W'].detach().view(s['W'].shape[0], -1).float()
+        sv = torch.linalg.svdvals(W).cpu().numpy()
+        spec = spec_norms[ell]
+
+        U = layer_params['U_ell'][ell] if ell < 3 else layer_params['shapes'][ell][0]
+        d = layer_params['d_ell_minus1'][ell] if ell < 3 else layer_params['shapes'][ell][1]
+        W_sp = layer_params['W_ell_spatial'][ell]
+
+        best_val = float('inf')
+        best_p_ell = 0.0
+        for p in p_grid:
+            if p == 0:
+                entrywise_ratio_p = np.count_nonzero(W.cpu().numpy())
+            else:
+                entrywise_ratio_p = float(np.sum(np.abs(W.cpu().numpy()) ** p) / (spec ** p + 1e-30))
+
+            norm_factor = (B_max * prod_spec) ** (2 * p / (3 * p + 2))
+            rank_factor = entrywise_ratio_p ** (2 / (3 * p + 2))
+            dim_factor = (U * np.sqrt(d * W_sp)) ** ((2 * p) / (3 * p + 2))
+
+            val = norm_factor * rank_factor * dim_factor
+            if val < best_val:
+                best_val = val
+                best_p_ell = p
+        best_p.append(best_p_ell)
+    return best_p
+
+def ours_thm36(stats, layer_params, N, B_max, p_ells=None):
+    """
+    Theorem 3.6 (without loss augmentation):
+    R^C_{FA} = [sum_ell { [B * prod_i rho_i ||A_i||]^{2p_ell/(p_ell+2)}
+                          * [||A_ell - M_ell||_{sc,p_ell} / ||op(A_ell)||^{p_ell}]^{2/(p_ell+2)}
+                          * (U_ell + d_{ell-1})^{2/(p_ell+2)} * W_ell^{p_ell/(p_ell+2)} }]^{1/2}
+
+    With M_ell = 0 and rho_ell = 1 (ReLU), B = B_max (max input norm).
+    Dominant term: sqrt(L/N) * R^C_{FA}
+    """
+    L = layer_params['L']
+    spec_norms = layer_params['spec_norms']
+    prod_spec = math.prod(max(s, 1e-15) for s in spec_norms)
+
+    if p_ells is None:
+        p_ells = optimize_p_ells_entrywise(stats, layer_params, B_max)
+
+    R_sum = 0.0
+    for ell in range(L):
+        p = p_ells[ell]
+        s = stats[ell]
+        W = s['W'].detach().view(s['W'].shape[0], -1).float() 
+        sv = torch.linalg.svdvals(W).cpu().numpy()
+        spec = spec_norms[ell] 
+
+        # ||A_ell||_{sc,p}^p / ||op(A)||^p  (M=0)
+        if p == 0:
+            entrywise_ratio_p = np.count_nonzero(W.cpu().numpy())
+        else:
+            entrywise_ratio_p = float(np.sum(np.abs(W.cpu().numpy()) ** p) / (spec ** p + 1e-30))
+
+        U = layer_params['U_ell'][ell] if ell < 3 else layer_params['shapes'][ell][0]
+        d = layer_params['d_ell_minus1'][ell] if ell < 3 else layer_params['shapes'][ell][1]
+        W_sp = layer_params['W_ell_spatial'][ell]
+
+        norm_factor = (B_max * prod_spec) ** (2 * p / (3 * p + 2))
+        rank_factor = entrywise_ratio_p ** (2 / (3 * p + 2))
+        dim_factor = (U * np.sqrt(d * W_sp)) ** ((2 * p) / (3 * p + 2))
+        R_sum += norm_factor * rank_factor * dim_factor
+
+    R = math.sqrt(R_sum)
+    return math.sqrt(L / N) * R
+
+
+def ours_thm37(stats, layer_params, N, B_max, B_ells, p_ells=None):
+    """
+    Theorem 3.7 (with loss augmentation):
+    Same as 3.6 but B * prod_{i>=ell} ||A_i|| replaced by
+    B_{ell-1, A} * prod_{i>=ell} rho_i ||A_i||.
+    """
+    L = layer_params['L']
+    spec_norms = layer_params['spec_norms']
+
+    if p_ells is None:
+        p_ells = optimize_p_ells_entrywise(stats, layer_params, B_max)
+
+    R_sum = 0.0
+    for ell in range(L):
+        p = p_ells[ell]
+        s = stats[ell]
+        W = s['W'].detach().view(s['W'].shape[0], -1).float()
+        spec = spec_norms[ell]
+
+        # ||A_ell||_{sc,p}^p / ||op(A)||^p  (M=0)
+        if p == 0:
+            entrywise_ratio_p = np.count_nonzero(W.cpu().numpy())
+        else:
+            entrywise_ratio_p = float(np.sum(np.abs(W.cpu().numpy()) ** p) / (spec ** p + 1e-30))
+
+        U = layer_params['U_ell'][ell] if ell < 3 else layer_params['shapes'][ell][0]
+        d = layer_params['d_ell_minus1'][ell] if ell < 3 else layer_params['shapes'][ell][1]
+        W_sp = layer_params['W_ell_spatial'][ell]
+
+        # B_{ell-1,A} * prod_{i>=ell} ||A_i||
+        B_ell_prev = B_ells[ell]   # B_{ell-1, A}
+        prod_spec_from_ell = math.prod(max(spec_norms[i], 1e-15) for i in range(ell, L))
+        aug_factor = B_ell_prev * prod_spec_from_ell
+
+        norm_factor = aug_factor ** (2 * p / (3 * p + 2))
+        rank_factor = entrywise_ratio_p ** (2 / (3 * p + 2))
+        dim_factor = (U * np.sqrt(d * W_sp)) ** ((2 * p) / (3 * p + 2))
+        R_sum += norm_factor * rank_factor * dim_factor
+
+    R = math.sqrt(R_sum)
+    return  math.sqrt(L/N) * R
 
 
 # ──────────────────────────────────────────────────────────────
@@ -813,10 +937,6 @@ def run_experiment(args):
 
         # ---- compute all bounds (dominant term only) ----
         bounds = {}
-        b_val = bound_long_sedghi2020(stats, layer_params, N)
-        bounds['LongSedghi2020_C15'] = b_val
-        print(f"  Long & Sedghi 2020 (C15):        {b_val:.4e}")
-
         b_val = bound_graf2022(stats, layer_params, N)
         bounds['Graf2022_C16'] = b_val
         print(f"  Graf et al. 2022 (C16):          {b_val:.4e}")
@@ -836,6 +956,18 @@ def run_experiment(args):
         b_val = ledent_thm37(stats, layer_params, N, B_max, B_ells, p_ells_opt)
         bounds['Ledent2025_Thm37'] = b_val
         print(f"  Ledent et al. 2025 (with loss aug):    {b_val:.4e}")
+
+        # --- optimized p_ells ---
+        p_ells_opt = optimize_p_ells_entrywise(stats, layer_params, B_max)
+        print(f"  Optimal p_ells: {[f'{p:.3f}' for p in p_ells_opt]}")
+
+        b_val = ours_thm36(stats, layer_params, N, B_max, p_ells_opt)
+        bounds['Ours_Thm36'] = b_val
+        print(f"  Ours (no loss aug):      {b_val:.4e}")
+
+        b_val = ours_thm37(stats, layer_params, N, B_max, B_ells, p_ells_opt)
+        bounds['Ours_Thm37'] = b_val
+        print(f"  Ours (with loss aug):    {b_val:.4e}")
 
         results[fc_width] = {
             'train_acc': train_acc,
@@ -873,12 +1005,13 @@ def run_experiment(args):
 def plot_results(results, save_path='figure_D3.png'):
     widths = sorted(results.keys())
     bound_keys = [
-        ('LongSedghi2020_C15',    'Long & Sedghi, 2020\nEq. C15'),
         ('Graf2022_C16',          'Graf et al., 2022\nEq. C16'),
         ('Pinto2024_C9_C1eq1',    'Pinto et al., 2024\nEq. C9 · C1=1'),
         ('Pinto2024_C9_C1eq2',    'Pinto et al., 2024\nEq. C9 · C1=2'),
         ('Ledent2025_Thm36',      'Ledent et al., 2025\n(without loss-aug)'),
         ('Ledent2025_Thm37',      'Ledent et al., 2025\n(with loss-aug)'),
+        ('Ours_Thm36',            'Ours\n(without loss-aug)'),
+        ('Ours_Thm37',            'Ours\n(with loss-aug)'),
     ]
 
     n_methods = len(bound_keys)
@@ -900,7 +1033,7 @@ def plot_results(results, save_path='figure_D3.png'):
 
     ax.set_xticks(x)
     ax.set_xticklabels([label for _, label in bound_keys], fontsize=7.5)
-    ax.set_ylabel('Bound (Log₁₀ Scale)', fontsize=10)
+    ax.set_ylabel('Bound (Log-10 Scale)', fontsize=10)
     ax.set_title('Figure D.3: Numerical Comparison of Bounds with Literature (CNNs, CIFAR-10)',
                  fontsize=11)
     ax.legend(fontsize=9)
