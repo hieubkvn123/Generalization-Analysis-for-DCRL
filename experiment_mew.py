@@ -149,7 +149,7 @@ class CNN(nn.Module):
 # ──────────────────────────────────────────────────────────────
 # 3.  Training
 # ──────────────────────────────────────────────────────────────
-def train_one_epoch_standard(model, loader, optimizer, device):
+def train_one_epoch_standard(model, loader, optimizer, device, max_sigma=1.0):
     model.train()
     total_loss, correct, total = 0., 0, 0
     for imgs, labels in loader:
@@ -160,11 +160,11 @@ def train_one_epoch_standard(model, loader, optimizer, device):
         loss.backward()
         optimizer.step()
         # project spectral norms after each step
+        project_spectral_norm_(model, max_sigma)
         total_loss += loss.item() * imgs.size(0)
         correct += out.argmax(1).eq(labels).sum().item()
         total += imgs.size(0)
     return total_loss / total, correct / total
-
 
 def train_one_epoch_spectral_decay(
         model, loader, optimizer, device,
@@ -973,17 +973,11 @@ def run_experiment(args):
                         decay_lambda=args.decay_lambda,
                         min_sigma=args.min_sigma)
                 elif regime == 'approx_sparse':
-                    if epoch <= 20: # Warm-up
-                        tr_loss, tr_acc = train_one_epoch_spectral_decay(
-                            model, train_loader, optimizer, device,
-                            decay_lambda=args.decay_lambda,
-                            min_sigma=args.min_sigma)
-                    else:
-                        tr_loss, tr_acc = train_one_epoch_approx_sparse(
-                            model, train_loader, optimizer, device,
-                            sparse_lambda=args.sparse_lambda,
-                            sparse_alpha=args.sparse_alpha,
-                            epoch=epoch)
+                    tr_loss, tr_acc = train_one_epoch_approx_sparse(
+                        model, train_loader, optimizer, device,
+                        sparse_lambda=args.sparse_lambda,
+                        sparse_alpha=args.sparse_alpha,
+                        epoch=epoch)
                 else:  # 'standard'
                     tr_loss, tr_acc = train_one_epoch_standard(
                         model, train_loader, optimizer, device, max_sigma=1.0)
