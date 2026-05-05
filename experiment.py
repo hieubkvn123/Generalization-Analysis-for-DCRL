@@ -1,32 +1,3 @@
-"""
-Reproduces Figure D.3 from:
-  "Generalization Bounds for Rank-sparse Neural Networks"
-  Ledent, Alves, Lei. NeurIPS 2025.
-
-Architecture (Section D.3):
-  - 3 convolutional layers, kernel size (3,3)
-  - 5 fully connected layers
-  - Output layer width = 10 (CIFAR-10)
-  - Intermediary FC layer widths varied in {200, 600, 1000}
-  - Spectral regularization: spectral norms of all weight matrices constrained to 1
-  - Margin set dynamically to ensure <=1% accuracy loss vs margin=0
-  - Reference matrices M_ell = 0
-
-Bounds computed (dominant term only, ignoring constants and log factors):
-  - Bartlett et al. 2017      (Eq. C1)
-  - Golowich et al. 2018 x2  (Eq. C6, C7)
-  - Neyshabur et al. 2018    (Eq. C5, deduced from [3]/[1])
-  - Long & Sedghi 2020       (Eq. C15)  -- parameter counting
-  - Graf et al. 2022         (Eq. C16)  -- parameter counting
-  - Pinto et al. 2024 x3     (Eq. C9/C10 with C1=1 and C1=2)
-  - Ledent et al. 2025       (without loss augmentation)
-  - Ledent et al. 2025       (with loss augmentation)
-
-Usage:
-  python cifar10_cnn_bounds.py [--widths 200 600 1000] [--epochs 50]
-                               [--save_dir ./saved_models] [--seed 42]
-"""
-
 import argparse
 import os
 import math
@@ -717,9 +688,9 @@ def optimize_p_ells_entrywise(stats, layer_params, B_max):
             else:
                 entrywise_ratio_p = float(np.sum(np.abs(W.cpu().numpy()) ** p) / (spec ** p + 1e-30))
 
-            norm_factor = (B_max * prod_spec) ** (2 * p / (3 * p + 2))
-            rank_factor = entrywise_ratio_p ** (2 / (3 * p + 2))
-            dim_factor = (U * np.sqrt(d * W_sp)) ** ((2 * p) / (3 * p + 2))
+            norm_factor = (B_max * prod_spec) ** (2 * p / (p + 2))
+            rank_factor = entrywise_ratio_p ** (2 / (p + 2))
+            dim_factor = (U * d * W_sp) ** (p / (p + 2))
 
             val = norm_factor * rank_factor * dim_factor
             if val < best_val:
@@ -749,7 +720,7 @@ def ours_thm36(stats, layer_params, N, B_max, p_ells=None):
     for ell in range(L):
         p = p_ells[ell]
         s = stats[ell]
-        W = s['W'].detach().view(s['W'].shape[0], -1).float() 
+        W = s['W'].detach().view(s['W'].shape[0], -1).float()
         sv = torch.linalg.svdvals(W).cpu().numpy()
         spec = spec_norms[ell] 
 
@@ -763,9 +734,9 @@ def ours_thm36(stats, layer_params, N, B_max, p_ells=None):
         d = layer_params['d_ell_minus1'][ell] if ell < 3 else layer_params['shapes'][ell][1]
         W_sp = layer_params['W_ell_spatial'][ell]
 
-        norm_factor = (B_max * prod_spec) ** (2 * p / (3 * p + 2))
-        rank_factor = entrywise_ratio_p ** (2 / (3 * p + 2))
-        dim_factor = (U * np.sqrt(d * W_sp)) ** ((2 * p) / (3 * p + 2))
+        norm_factor = (B_max * prod_spec) ** (2 * p / (p + 2))
+        rank_factor = entrywise_ratio_p ** (2 / (p + 2))
+        dim_factor = (U * d * W_sp) ** (p / (p + 2))
         R_sum += norm_factor * rank_factor * dim_factor
 
     R = math.sqrt(R_sum)
@@ -806,9 +777,9 @@ def ours_thm37(stats, layer_params, N, B_max, B_ells, p_ells=None):
         prod_spec_from_ell = math.prod(max(spec_norms[i], 1e-15) for i in range(ell, L))
         aug_factor = B_ell_prev * prod_spec_from_ell
 
-        norm_factor = aug_factor ** (2 * p / (3 * p + 2))
-        rank_factor = entrywise_ratio_p ** (2 / (3 * p + 2))
-        dim_factor = (U * np.sqrt(d * W_sp)) ** ((2 * p) / (3 * p + 2))
+        norm_factor = aug_factor ** (2 * p / (p + 2))
+        rank_factor = entrywise_ratio_p ** (2 / (p + 2))
+        dim_factor = (U * d * W_sp) ** (p / (p + 2))
         R_sum += norm_factor * rank_factor * dim_factor
 
     R = math.sqrt(R_sum)
